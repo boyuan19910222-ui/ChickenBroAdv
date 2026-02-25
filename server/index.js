@@ -281,7 +281,7 @@ io.on('connection', (socket) => {
 setupChat(io, roomManager, chatManager)
 
 // ── Start ───────────────────────────────────────────────────
-httpServer.listen(config.port, () => {
+httpServer.listen(config.port, '0.0.0.0', () => {
     console.log(`[server] ChickenBro server running on port ${config.port}`)
 })
 
