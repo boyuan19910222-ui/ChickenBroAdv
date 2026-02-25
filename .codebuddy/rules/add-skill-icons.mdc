@@ -1,0 +1,97 @@
+---
+description: 替换/添加技能图标的标准化操作流程，适用于为任意职业的技能添加像素风格图标
+alwaysApply: false
+enabled: true
+updatedAt: 2026-02-19T06:55:28.682Z
+provider: 
+---
+
+# 替换/添加图标的标准化操作流程
+
+当用户提供图标文件并要求替换到任意实体（技能、天赋、野怪、区域、副本、装备等）时，按以下流程操作。
+
+## 目录结构约定
+
+```
+public/icons/
+├── classes/{classId}.png                         ← 职业图标 ✅
+├── roles/{roleId}.png                            ← 战斗角色
+├── skills/{classId}/{skill-kebab}.png            ← 技能图标 🔧
+├── talents/{classId}/{talent-kebab}.png          ← 天赋图标
+├── monsters/{areaId}/{monster-kebab}.png         ← 野怪图标
+├── areas/{areaId}.png                            ← 区域图标
+├── dungeons/{dungeonId}.png                      ← 副本封面
+├── dungeons/{dungeonId}/{boss-kebab}.png         ← 副本怪物
+├── items/{itemId}.png                            ← 消耗品
+├── equipment/slots/{slotId}.png                  ← 装备槽位
+├── equipment/quality/{qualityId}.png             ← 品质标识
+├── pets/{petId}.png                              ← 猎人宠物
+├── demons/{demonId}.png                          ← 术士恶魔
+├── totems/{totemId}.png                          ← 萨满图腾
+└── forms/{formId}.png                            ← 德鲁伊变形
+```
+
+## 命名规则
+
+- 文件名统一使用实体 ID 的 **kebab-case** 小写
+- 转换: `heroicStrike` → `heroic-strike.png`, `elwynn_forest` → `elwynn_forest.png`（下划线保留）
+- 格式统一 PNG
+- 路径以 `/icons/` 开头（Vite public 目录）
+
+## 通用操作步骤
+
+### 1. 识别源文件
+
+- 确认用户提供的图标文件位置（通常在 `tmp/` 目录）
+- 查看文件列表，通过文件名识别每个图标对应的实体
+
+### 2. 复制并标准化命名
+
+```bash
+mkdir -p public/icons/{category}/{subcategory}/
+cp "原始文件名.png" "public/icons/{category}/{subcategory}/{kebab-id}.png"
+```
+
+- 目标文件名必须使用 kebab-case 英文命名
+
+### 3. 给数据添加 icon 字段
+
+找到对应数据文件中的实体定义，添加 `icon` 字段：
+
+| 实体类型 | 数据文件 | icon 路径模板 |
+|----------|---------|--------------|
+| 技能 | `GameData.js` skills | `/icons/skills/{classId}/{kebab}.png` |
+| 天赋分支 | `TalentData.js` | `/icons/talents/{classId}/{tree}.png` |
+| 野怪 | `MonsterData.js` | `/icons/monsters/{areaId}/{kebab}.png` |
+| 区域 | `MonsterData.js` areas | `/icons/areas/{areaId}.png` |
+| 副本 | `DungeonRegistry.js` | `/icons/dungeons/{dungeonId}.png` |
+| 副本怪物 | `dungeons/*.js` | `/icons/dungeons/{dungeonId}/{kebab}.png` |
+| 消耗品 | `GameData.js` items | `/icons/items/{itemId}.png` |
+| 装备槽位 | `EquipmentData.js` | `/icons/equipment/slots/{slotId}.png` |
+| 品质 | `EquipmentData.js` QualityConfig | `/icons/equipment/quality/{qualityId}.png` |
+| 宠物 | `ClassMechanics.js` petTypes | `/icons/pets/{petId}.png` |
+| 恶魔 | `ClassMechanics.js` demonTypes | `/icons/demons/{demonId}.png` |
+| 图腾 | `ClassMechanics.js` totemTypes | `/icons/totems/{totemId}.png` |
+| 变形 | `ClassMechanics.js` shapeshiftForms | `/icons/forms/{formId}.png` |
+
+### 4. 验证 UI 渲染
+
+- 已支持 `icon` 字段的组件会自动用 `<img>` 渲染
+- 未支持的组件需要添加：有 `icon` 时用 `<img>`，否则降级为 `emoji`
+- 图片样式统一使用 `image-rendering: pixelated` 保持像素风
+
+### 5. 清理 tmp/ 源文件
+
+- 图标替换完毕并验证无误后，删除 `tmp/` 目录中对应的原始图标文件
+- 仅删除已成功复制到 `public/icons/` 的文件，未处理的文件保留
+
+```bash
+rm "tmp/原始文件名.png"
+```
+
+## 注意事项
+
+- `emoji` 字段保留作为 fallback，不要删除
+- 渲染优先级: `icon`（图片）> `emoji`（文字）
+- 组件中判断逻辑: `v-if="item.icon"` 显示 img，`v-else` 显示 emoji
+- 详见 `openspec/changes/replace-emoji-with-pixel-icons/design.md` 完整规范

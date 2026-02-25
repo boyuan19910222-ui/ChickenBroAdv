@@ -1,0 +1,80 @@
+/* CSS 变量系统 - 魔兽世界风格配色 */
+:root {
+    /* === 字体 === */
+    --pixel-font: 'Ark Pixel 12px Monospaced zh_cn', monospace;
+
+    /* === 字号体系 (12px 整数倍) === */
+    --fs-xs: 12px;
+    --fs-sm: 12px;
+    --fs-base: 12px;
+    --fs-md: 24px;
+    --fs-lg: 36px;
+    --fs-xl: 48px;
+
+    /* === 金色系（保持） === */
+    --primary-gold: #FFD700;
+    --secondary-gold: #C9A227;
+    --dark-gold: #B8941F;
+    --accent-gold: #FFE55C;
+
+    /* === 背景色 - WoW 原版冷色调 === */
+    --bg-primary: #0D1B2A;
+    --bg-secondary: #1B2838;
+    --bg-tertiary: #243447;
+    --bg-surface: #152232;
+
+    /* === 边框色 === */
+    --border-primary: #3D5A80;
+    --border-accent: #C9A227;
+
+    /* === 文字色层级 === */
+    --text-primary: #F5F5DC;
+    --text-secondary: #8a8a6a;
+    --text-muted: #5a5a4a;
+    --text-disabled: #3a3a2a;
+
+    /* === 职业色 (WoW 官方) === */
+    --class-warrior: #C79C6E;
+    --class-paladin: #F58CBA;
+    --class-hunter: #ABD473;
+    --class-rogue: #FFF569;
+    --class-priest: #FFFFFF;
+    --class-shaman: #0070DE;
+    --class-mage: #69CCF0;
+    --class-warlock: #9482C9;
+    --class-druid: #FF7D0A;
+
+    /* === 功能色 === */
+    --color-hp: #FF4444;
+    --color-mana: #3F48CC;
+    --color-energy: #FFFF00;
+    --color-rage: #FF4444;
+    --color-exp: #FFD700;
+    --color-friendly: #00FF00;
+    --color-hostile: #FF0000;
+    --color-neutral: #FFFF00;
+    --color-interactive: #FFD700;
+    --color-buff: #4ade80;
+    --color-debuff: #f87171;
+    --color-damage: #ff4444;
+    --color-heal: #44ff44;
+
+    /* === 旧变量兼容映射 === */
+    --dark-brown: #0D1B2A;
+    --medium-brown: #1B2838;
+    --light-brown: #243447;
+    --primary-green: #1B3A2A;
+    --secondary-green: #2A4F3A;
+    --light-green: #3A6A4A;
+    --accent-green: #4A8A5A;
+    --hp-red: #FF4444;
+    --mp-blue: #3F48CC;
+    --text-light: #F5F5DC;
+    --text-dark: #1A1A1A;
+    --border-light: #3D5A80;
+    --border-dark: #1B3050;
+
+    /* === 过渡 === */
+    --transition-fast: 0.15s;
+    --transition-normal: 0.3s;
+}

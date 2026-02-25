@@ -1,0 +1,268 @@
+/* 像素风通用 UI 组件样式 */
+
+/* 面板 */
+.pixel-panel {
+    background: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
+    border: 3px solid var(--border-primary);
+    border-radius: 4px;
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3),
+                0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* 按钮 */
+.pixel-btn {
+    background: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
+    border: 2px solid var(--border-primary);
+    color: var(--text-primary);
+    font-family: var(--pixel-font);
+    font-size: var(--fs-xs);
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 80px;
+    min-height: 36px;
+    justify-content: center;
+    text-align: center;
+}
+
+.pixel-btn:hover {
+    border-color: var(--primary-gold);
+    background: linear-gradient(180deg, var(--bg-tertiary), var(--bg-secondary));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.pixel-btn:active {
+    transform: translateY(0);
+}
+
+.pixel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.pixel-btn.primary {
+    border-color: var(--primary-gold);
+    background: linear-gradient(180deg, var(--dark-gold), var(--secondary-gold));
+    color: var(--text-dark);
+}
+
+.pixel-btn.primary:hover {
+    background: linear-gradient(180deg, var(--primary-gold), var(--dark-gold));
+}
+
+.pixel-btn .btn-icon {
+    font-size: 16px;
+}
+
+.pixel-btn .ap-cost {
+    font-size: var(--fs-xs);
+    color: var(--accent-gold);
+    opacity: 0.7;
+}
+
+/* 标题栏 */
+.game-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 15px;
+    background: linear-gradient(90deg, var(--primary-gold), var(--accent-gold), var(--primary-gold));
+    background-size: 200% 100%;
+    animation: titleGlow 3s ease-in-out infinite;
+    border-bottom: 4px solid var(--dark-gold);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    min-height: 50px;
+}
+
+.game-header .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.game-header h1 {
+    font-size: var(--fs-md);
+    color: var(--bg-primary);
+    text-shadow: 1px 1px 0px var(--secondary-gold);
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.game-header .header-center {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.game-header .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-btn {
+    background: linear-gradient(145deg, var(--bg-secondary), var(--bg-primary));
+    border: 2px solid var(--border-primary);
+    color: var(--text-primary);
+    padding: 8px 16px;
+    font-family: var(--pixel-font);
+    font-size: var(--fs-xs);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+}
+
+.header-btn:hover {
+    background: linear-gradient(145deg, var(--bg-tertiary), var(--bg-secondary));
+    border-color: var(--primary-gold);
+    transform: translateY(-1px);
+}
+
+.header-btn .btn-icon {
+    font-size: 16px;
+}
+
+.header-btn.system-btn {
+    background: linear-gradient(145deg, var(--bg-primary), #060e18);
+    border-color: var(--border-primary);
+    opacity: 0.9;
+}
+
+.header-btn.system-btn:hover {
+    opacity: 1;
+    border-color: var(--secondary-gold);
+}
+
+/* 血条 / 资源条 */
+.bar-container {
+    width: 100%;
+    height: 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.3s;
+    border-radius: 3px;
+}
+
+.bar-fill.hp {
+    background: linear-gradient(90deg, #8b0000, var(--color-hp));
+}
+
+.bar-fill.mp,
+.bar-fill.mana {
+    background: linear-gradient(90deg, #000066, var(--color-mana));
+}
+
+.bar-fill.energy {
+    background: linear-gradient(90deg, #888800, var(--color-energy));
+}
+
+.bar-fill.rage {
+    background: linear-gradient(90deg, #880000, var(--color-rage));
+}
+
+.bar-fill.exp {
+    background: linear-gradient(90deg, var(--dark-gold), var(--primary-gold));
+}
+
+/* 日志面板 */
+.message-log {
+    background: var(--bg-primary);
+    border: 2px solid var(--border-primary);
+    border-radius: 4px;
+    padding: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    font-size: var(--fs-xs);
+    line-height: 1.8;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(61, 90, 128, 0.2);
+}
+
+.log-entry.combat {
+    color: var(--color-damage);
+    border-left: 2px solid var(--color-damage);
+    padding-left: 6px;
+}
+
+.log-entry.system {
+    color: var(--primary-gold);
+    border-left: 2px solid var(--primary-gold);
+    padding-left: 6px;
+}
+
+.log-entry.loot {
+    color: var(--color-friendly);
+    border-left: 2px solid var(--color-friendly);
+    padding-left: 6px;
+}
+
+/* 模态框 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+.modal-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal-panel {
+    background: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
+    border: 3px solid var(--primary-gold);
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+}
+
+.modal-title {
+    font-size: var(--fs-md);
+    color: var(--primary-gold);
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.modal-message {
+    font-size: var(--fs-xs);
+    color: var(--text-primary);
+    text-align: center;
+    margin-bottom: 20px;
+    line-height: 1.8;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
