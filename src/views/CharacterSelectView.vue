@@ -425,6 +425,7 @@ onMounted(() => {
   gap: 8px;
   padding: 24px 12px;
   border-style: dashed;
+  grid-column: 1 / -1;
 }
 
 .create-icon {
