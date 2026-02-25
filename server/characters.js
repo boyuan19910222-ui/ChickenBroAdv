@@ -31,7 +31,7 @@ const CLASS_CONFIG = {
         name: '盗贼',
         baseStats: { health: 80, mana: 50, strength: 10, agility: 18, intellect: 5, stamina: 6, spirit: 6 },
         growthPerLevel: { health: 10, mana: 5, strength: 2, agility: 3, intellect: 1, stamina: 0.2, spirit: 0.5 },
-        baseSkills: ['sinisterStrike', 'eviscerate', 'stealth', 'backstab'],
+        baseSkills: ['shadowStrike', 'eviscerate', 'stealth', 'backstab'],
         resourceType: 'energy',
         resourceMax: 100
     },
