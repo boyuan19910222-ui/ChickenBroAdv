@@ -349,7 +349,11 @@ export const useGameStore = defineStore('game', {
             const level = state.player?.level || 1
             const token = localStorage.getItem('mp_token')
             if (!token) return
-            const url = `http://127.0.0.1:3001/api/characters/${this.currentCharacterId}`
+            // 动态获取 API 地址
+            const apiHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'http://127.0.0.1:3001'
+                : `http://${window.location.hostname}:3001`
+            const url = `${apiHost}/api/characters/${this.currentCharacterId}`
             try {
                 fetch(url, {
                     method: 'PUT',
