@@ -136,6 +136,7 @@ async function loadCharacters() {
 
 async function selectCharacter(char) {
   try {
+    console.log('选择角色', char)
     error.value = null
     const data = await characterApi.getById(char.id)
     
@@ -410,6 +411,7 @@ onMounted(() => {
   opacity: 0.5;
   transition: opacity 0.2s;
   font-size: 14px;
+  z-index: 10;
 }
 
 .delete-btn:hover {
@@ -460,6 +462,11 @@ onMounted(() => {
   margin-top: 16px;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* 模态框 */
 .modal-overlay {
   position: fixed;
@@ -471,7 +478,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: 9999;
 }
 
 .modal-panel {
@@ -517,10 +524,5 @@ onMounted(() => {
 
 .modal-buttons .pixel-btn.danger:hover {
   background: #cc3333;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 </style>

@@ -226,14 +226,6 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s;
-}
-
-.modal-overlay.show {
-    opacity: 1;
-    pointer-events: auto;
 }
 
 .modal-panel {
