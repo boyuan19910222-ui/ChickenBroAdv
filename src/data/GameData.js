@@ -89,6 +89,7 @@ export const GameData = {
             
             generation: {
                 perTurn: 15,        // 战斗中每回合恢复
+                onAttackCrit: 5,    // 普通攻击暴击时额外回复能量
                 outOfCombat: {
                     enabled: true,
                     rate: 20,       // 脱战后每秒恢复量
@@ -716,13 +717,13 @@ export const GameData = {
         // ═══════════════════════════════════════════
         shadowStrike: {
             id: 'shadowStrike', name: '影袭', emoji: '👤',
-            description: '快速攻击敌人，产生1个连击点',
+            description: '快速攻击敌人，产生1个连击点（暴击产生2个）',
             unlockLevel: 1, category: 'builder',
             skillType: 'melee', damageType: 'physical', targetType: 'enemy', range: 'melee',
             resourceCost: { type: 'energy', value: 40 }, actionPoints: 1, cooldown: 0,
             damage: { base: 20, scaling: 1.2, stat: 'agility' },
             heal: null, effects: [],
-            comboPoints: { generates: 1 },
+            comboPoints: { generates: 1, critGenerates: 2 },
             generatesResource: null, conditions: null
         },
         eviscerate: {

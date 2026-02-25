@@ -27,8 +27,8 @@ export function useCombatFloats() {
       triggerShake(unitId, !!isCrit)
     }
 
-    // Auto-remove after animation
-    const duration = isCrit ? 1200 : 800
+    // Auto-remove after animation (crit: 2.4s, normal: 0.8s)
+    const duration = isCrit ? 2400 : 800
     const timer = setTimeout(() => {
       const arr = floatingNumbers[unitId]
       if (arr) {

@@ -356,6 +356,11 @@ export class CombatSystem {
             amount = resourceConfig.generation.onHit;
         }
         
+        // 能量暴击额外回复（仅普通攻击触发）
+        if (trigger === 'attack' && isCrit && resourceConfig.generation.onAttackCrit) {
+            amount += resourceConfig.generation.onAttackCrit;
+        }
+
         if (amount > 0) {
             const oldValue = player.resource.current;
             player.resource.current = Math.min(player.resource.max, player.resource.current + amount);
@@ -487,14 +492,17 @@ export class CombatSystem {
             this.addLog(`${player.name} 使用 ${skill.name}，${critText}造成 ${actualDamage} 点${dmgTypeEmoji}伤害！`, 'combat', this._getPlayerClassColor());
             player.statistics.damageDealt += actualDamage;
             
-            // Builder 产生连击点（新 schema: comboPoints.generates）
+            // Builder 产生连击点（新 schema: comboPoints.generates，暴击时使用 critGenerates）
             const generates = skill.comboPoints?.generates || skill.comboPointsGenerated;
             if (generates && player.comboPoints) {
+                const critGenerates = skill.comboPoints?.critGenerates;
+                const actualGenerates = (skillIsCrit && critGenerates) ? critGenerates : generates;
                 const oldCombo = player.comboPoints.current;
-                player.comboPoints.current = Math.min(player.comboPoints.max, player.comboPoints.current + generates);
+                player.comboPoints.current = Math.min(player.comboPoints.max, player.comboPoints.current + actualGenerates);
                 const actualGain = player.comboPoints.current - oldCombo;
                 if (actualGain > 0) {
-                    this.addLog(`🗡️ +${actualGain} 连击点`, 'system', this._getPlayerClassColor());
+                    const critHint = (skillIsCrit && critGenerates && actualGenerates > generates) ? '（暴击）' : '';
+                    this.addLog(`🗡️ +${actualGain} 连击点${critHint}`, 'system', this._getPlayerClassColor());
                 }
             }
             

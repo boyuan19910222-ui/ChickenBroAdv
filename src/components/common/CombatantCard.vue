@@ -421,10 +421,10 @@ function onClick() {
 }
 
 .floating-number.crit {
-  font-size: var(--fs-md);
+  font-size: calc(var(--fs-md) * 3);
   color: var(--primary-gold);
   text-shadow: 0 0 8px #ff6600, 0 0 16px #ff3300, 0 0 24px var(--color-damage), 1px 1px 0 #000;
-  animation: critDamageFloat 1.2s ease-out forwards;
+  animation: critDamageFloat 2.4s ease-out forwards;
 }
 
 .floating-number.heal {
@@ -481,6 +481,7 @@ function onClick() {
   8% { opacity: 1; transform: translateY(-5px) scale(1.6); }
   20% { opacity: 1; transform: translateY(-12px) scale(1.3); }
   100% { opacity: 0; transform: translateY(-65px) scale(0.7); }
+  /* 动画时长为 2.4s（普通的两倍），由 .floating-number.crit 的 animation 属性控制 */
 }
 
 @keyframes healFloat {
