@@ -23,7 +23,7 @@
         <span class="btn-icon">🪨</span>
         <span>集合石</span>
       </button>
-      <button class="header-btn system-btn debug-btn" v-show="false" @click="$emit('debug-levelup')">
+      <button class="header-btn system-btn debug-btn" @click="$emit('debug-levelup')">
         <span class="btn-icon">⬆️</span>
         <span>测试升级</span>
       </button>
