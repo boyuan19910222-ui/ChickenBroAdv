@@ -633,6 +633,25 @@ export class CombatSystem {
         if (!this.inCombat) return;
 
         const player = this.engine.stateManager.get('player');
+
+        // 检查玩家是否处于潜行状态：敌人无法感知，跳过本回合攻击
+        if (EffectSystem.isStealthed(player)) {
+            this.addLog(`🫥 ${player.name} 处于潜行状态，${this.enemy.name} 未能发现目标，跳过攻击！`, 'system');
+            // 回合结束结算
+            EffectSystem.processEndOfTurn([player, this.enemy], {});
+            this.regenerateEnergyPerTurn(player);
+            this.engine.stateManager.set('player', player);
+            if (this.checkCombatEnd()) return;
+            Object.keys(player.skillCooldowns).forEach(skillId => {
+                if (player.skillCooldowns[skillId] > 0) player.skillCooldowns[skillId]--;
+            });
+            this.turnCount++;
+            this.currentTurn = 'player';
+            this.updateCombatState();
+            this.addLog(`--- 第 ${this.turnCount} 回合 ---`, 'system');
+            this.engine.eventBus.emit('combat:turnChange', { turn: 'player', turnCount: this.turnCount });
+            return;
+        }
         
         // 检查敌人是否被 CC 控制（使用 EffectSystem）
         if (EffectSystem.isUnitCCed(this.enemy)) {
@@ -723,6 +742,13 @@ export class CombatSystem {
             onHeal: (unit, heal, source) => {
                 this.addLog(`${unit.name || '目标'} 恢复 ${heal} 点生命（${source}）！`, 'combat');
                 if (unit === player) player.statistics.healingDone += heal;
+            },
+            onEffectExpired: (unit, buff) => {
+                if (buff.type === 'stealth') {
+                    this.addLog(`🫥 ${unit.name} 的潜行状态已结束！`, 'system');
+                    // 同步清除潜行减速 buff
+                    if (unit.buffs) unit.buffs = unit.buffs.filter(b => b.name !== 'stealthSpeed');
+                }
             }
         });
         

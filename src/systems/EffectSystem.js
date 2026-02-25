@@ -68,6 +68,9 @@ export const EffectSystem = {
             case 'dispel':
                 this._applyDispel(target, effect, context)
                 break
+            case 'stealth':
+                this._applyStealth(target, effect, context)
+                break
         }
     },
 
@@ -187,6 +190,18 @@ export const EffectSystem = {
         }
     },
 
+    _applyStealth(target, effect, context) {
+        if (!target.buffs) target.buffs = []
+        // 移除已有的潜行buff再重新添加（刷新）
+        target.buffs = target.buffs.filter(b => b.type !== 'stealth')
+        target.buffs.push({
+            type: 'stealth',
+            name: effect.name || 'stealth',
+            duration: effect.duration || 99,
+            remainingDuration: effect.duration || 99
+        })
+    },
+
     // ═══════════════════════════════════════════
     // 2.2 回合结束结算
     // ═══════════════════════════════════════════
@@ -290,6 +305,10 @@ export const EffectSystem = {
                 if (buff.remainingDuration <= 0) {
                     unit.buffs = unit.buffs.filter(b => b !== buff)
                     logs.push({ type: 'effect_expired', target: unit.name || unit.id, effectName: buff.name })
+                    // 触发 onEffectExpired 回调（供调用方处理特殊逻辑，如潜行过期）
+                    if (context.onEffectExpired) {
+                        context.onEffectExpired(unit, buff)
+                    }
                 }
             }
 
@@ -464,6 +483,26 @@ export const EffectSystem = {
         }
 
         return []
+    },
+
+    /**
+     * 检查单位是否处于潜行状态（无法被敌人选中为攻击目标）
+     */
+    isStealthed(unit) {
+        if (!unit.buffs) return false
+        return unit.buffs.some(b => b.type === 'stealth' && b.remainingDuration > 0)
+    },
+
+    /**
+     * 解除单位的潜行状态
+     */
+    breakStealth(unit) {
+        if (!unit.buffs) return false
+        const before = unit.buffs.length
+        unit.buffs = unit.buffs.filter(b => b.type !== 'stealth')
+        // 同时移除潜行速度debuff
+        if (unit.buffs) unit.buffs = unit.buffs.filter(b => b.name !== 'stealthSpeed')
+        return unit.buffs.length < before
     },
 
     /**

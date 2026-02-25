@@ -808,8 +808,8 @@ export const GameData = {
             resourceCost: null, actionPoints: 1, cooldown: 2,
             damage: null, heal: null,
             effects: [
-                { type: 'stealth', name: 'stealth', duration: 99 },
-                { type: 'buff', name: 'stealthSpeed', stat: 'moveSpeed', value: -0.3, duration: 99 }
+                { type: 'stealth', name: 'stealth', duration: 1 },
+                { type: 'buff', name: 'stealthSpeed', stat: 'moveSpeed', value: -0.3, duration: 1 }
             ],
             comboPoints: null, generatesResource: null,
             conditions: { outOfCombat: true }

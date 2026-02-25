@@ -1272,8 +1272,8 @@ export class DungeonCombatSystem {
         if (!targetIds || targetIds.length === 0) return [];
         const targets = [];
         for (const tid of targetIds) {
-            // 从队伍成员找
-            const member = this.partyState?.members?.find(m => m.id === tid && m.currentHp > 0);
+            // 从队伍成员找（潜行中的成员不可被敌人选中）
+            const member = this.partyState?.members?.find(m => m.id === tid && m.currentHp > 0 && !EffectSystem.isStealthed(m));
             if (member) { targets.push(member); continue; }
             // 从敌方找
             const enemyPos = this.battlefield?.enemy?.find(p => p.unitId === tid);
@@ -1537,8 +1537,9 @@ export class DungeonCombatSystem {
      */
     _selectEnemyTarget(enemy, skill) {
         if (skill) {
-            // 根据技能获取合法目标列表
-            const validTargets = PositioningSystem.getValidTargets(this.battlefield, enemy, skill);
+            // 根据技能获取合法目标列表，排除潜行中的成员
+            const validTargets = PositioningSystem.getValidTargets(this.battlefield, enemy, skill)
+                .filter(t => !EffectSystem.isStealthed(t));
             if (validTargets.length === 0) return null;
 
             // 在合法目标中优先选仇恨最高的
@@ -1547,10 +1548,11 @@ export class DungeonCombatSystem {
             return this.partyState.members.find(m => m.id === targetId) || validTargets[0];
         }
 
-        // 无技能时退回原逻辑
+        // 无技能时退回原逻辑，排除潜行中的成员
         const alivePlayerIds = this.partyState.members
-            .filter(m => m.currentHp > 0)
+            .filter(m => m.currentHp > 0 && !EffectSystem.isStealthed(m))
             .map(m => m.id);
+        if (alivePlayerIds.length === 0) return null;
         const targetId = ThreatSystem.getAttackTarget(this.threatState, enemy.id, alivePlayerIds);
         return this.partyState.members.find(m => m.id === targetId) || null;
     }
@@ -1636,33 +1638,37 @@ export class DungeonCombatSystem {
      */
     _resolveEnemySkillTargets(enemy, skill, primaryTarget) {
         const targetType = skill.targetType || 'enemy';
+        // 辅助过滤器：排除已死亡或处于潜行状态的目标
+        const isValidTarget = t => t && t.currentHp > 0 && !EffectSystem.isStealthed(t);
         switch (targetType) {
             case 'self':
                 return [enemy];
             case 'enemy':
             case 'single':
-                return [primaryTarget];
+                // 主目标若处于潜行则取消攻击
+                return isValidTarget(primaryTarget) ? [primaryTarget] : [];
             case 'front_2':
                 return PositioningSystem.getFrontTargets(this.battlefield, 'player', 2)
                     .map(u => this.partyState.members.find(m => m.id === u.id))
-                    .filter(t => t && t.currentHp > 0);
+                    .filter(isValidTarget);
             case 'front_3':
                 return PositioningSystem.getFrontTargets(this.battlefield, 'player', 3)
                     .map(u => this.partyState.members.find(m => m.id === u.id))
-                    .filter(t => t && t.currentHp > 0);
+                    .filter(isValidTarget);
             case 'all_enemies':
-                return this.partyState.members.filter(m => m.currentHp > 0);
+                return this.partyState.members.filter(isValidTarget);
             case 'random_3': {
-                const alive = this.partyState.members.filter(m => m.currentHp > 0);
+                const alive = this.partyState.members.filter(isValidTarget);
                 return shuffle([...alive]).slice(0, Math.min(3, alive.length));
             }
             case 'cleave_3': {
+                if (!isValidTarget(primaryTarget)) return [];
                 const { primary, splash } = PositioningSystem.getAdjacentTargets(this.battlefield, 'player', primaryTarget.id);
                 if (!primary) return [primaryTarget];
-                return [primary, ...splash].filter(t => t.currentHp > 0);
+                return [primary, ...splash].filter(isValidTarget);
             }
             default:
-                return [primaryTarget];
+                return isValidTarget(primaryTarget) ? [primaryTarget] : [];
         }
     }
 
@@ -1985,6 +1991,12 @@ export class DungeonCombatSystem {
 
         if (absorbed > 0) {
             this.addLog(`🛡️ ${target.name} 的护盾吸收了 ${absorbed} 点伤害`, 'system');
+        }
+
+        // 受到伤害时解除潜行
+        if (EffectSystem.isStealthed(target)) {
+            EffectSystem.breakStealth(target);
+            this.addLog(`🫥 ${target.name} 的潜行状态因受到攻击而解除！`, 'system');
         }
 
         target.currentHp = Math.max(0, target.currentHp - actualDamage);
@@ -2779,6 +2791,13 @@ export class DungeonCombatSystem {
             onHeal: (unit, heal, source) => {
                 this.addLog(`💚 ${unit.name || '目标'} 恢复 ${heal} 点生命（${source}）！`, 'combat');
                 this._syncBattlefieldHp(unit);
+            },
+            onEffectExpired: (unit, buff) => {
+                if (buff.type === 'stealth') {
+                    this.addLog(`🫥 ${unit.name} 的潜行状态已结束`, 'system');
+                    // 同步清除潜行减速 buff（防止因时序差异残留）
+                    if (unit.buffs) unit.buffs = unit.buffs.filter(b => b.name !== 'stealthSpeed');
+                }
             }
         });
 

@@ -200,7 +200,7 @@ export class CharacterSystem {
         // 应用buff
         player.buffs.forEach(buff => {
             if (buff.stat && player.stats[buff.stat]) {
-                player.stats[buff.stat] *= (1 + buff.value);
+                player.stats[buff.stat] = Math.floor(player.stats[buff.stat] * (1 + buff.value));
             }
         });
 
@@ -213,8 +213,8 @@ export class CharacterSystem {
         // 计算有效基础血量
         const effectiveBaseHealth = baseHealth;
         
-        // 新公式计算
-        const calculatedHealth = effectiveBaseHealth + (stamina * 30) + (level * 15);
+        // 新公式计算（取整避免浮点精度问题）
+        const calculatedHealth = Math.floor(effectiveBaseHealth + (stamina * 30) + (level * 15));
         player.stats.health = calculatedHealth;
         player.maxHp = calculatedHealth;
 
