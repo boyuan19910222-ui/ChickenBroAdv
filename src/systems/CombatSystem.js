@@ -303,7 +303,7 @@ export class CombatSystem {
         this.enemy.currentHp = Math.max(0, this.enemy.currentHp - finalDamage);
         
         const critText = isCrit ? '💥暴击！' : '';
-        this.addLog(`${player.name} 攻击 ${this.enemy.name}，${critText}造成 ${finalDamage} 点伤害！`, 'combat', this._getPlayerClassColor());
+        this.addLog(`${player.name} 普通攻击 ${this.enemy.name}，${critText}造成 ${finalDamage} 点伤害！`, 'combat', this._getPlayerClassColor());
         
         // 副手攻击（双持）
         const offHand = player.equipment?.offHand;
@@ -325,7 +325,7 @@ export class CombatSystem {
         player.statistics.damageDealt += finalDamage;
         this.engine.stateManager.set('player', player);
         
-        this.engine.eventBus.emit('combat:playerAttack', { damage: finalDamage, isCrit });
+        this.engine.eventBus.emit('combat:playerAttack', { damage: finalDamage, isCrit, skillName: '普通攻击' });
     }
 
     /**
@@ -544,7 +544,13 @@ export class CombatSystem {
         }
 
         this.engine.stateManager.set('player', player);
-        this.engine.eventBus.emit('combat:skillUsed', { skill, player, damage: skillDamage, isCrit: skillIsCrit });
+
+        // 攻击触发型资源生成（如普通攻击产生怒气）
+        if (skill.attackResourceGen) {
+            this.generateResource(player, 'attack', skillIsCrit);
+        }
+
+        this.engine.eventBus.emit('combat:skillUsed', { skill, player, damage: skillDamage, isCrit: skillIsCrit, skillName: skill.name });
     }
 
     /**

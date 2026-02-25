@@ -1941,6 +1941,7 @@ export class DungeonCombatSystem {
             target,
             damage,
             isCrit,
+            skillName: options.skillName || null,
             targetHp: target.currentHp,
             targetMaxHp: target.maxHp
         });
@@ -2264,8 +2265,8 @@ export class DungeonCombatSystem {
 
         const crit = this.rollCrit(attacker);
         const finalDamage = crit.isCrit ? Math.floor(damage * crit.multiplier) : damage;
-        this.applyDamage(attacker, target, finalDamage, null, { isCrit: crit.isCrit });
-        this.addLog(`⚔️ ${attacker.name} 攻击 ${target.name}，造成 ${finalDamage} 点伤害${crit.isCrit ? '（暴击！）' : ''}`, 'combat');
+        this.applyDamage(attacker, target, finalDamage, null, { isCrit: crit.isCrit, skillName: '普通攻击' });
+        this.addLog(`⚔️ ${attacker.name} 普通攻击 ${target.name}，造成 ${finalDamage} 点伤害${crit.isCrit ? '（暴击！）' : ''}`, 'combat');
 
         // 副手攻击（双持）
         const offHand = attacker.equipment?.offHand;
@@ -2278,7 +2279,7 @@ export class DungeonCombatSystem {
             offDmg = Math.max(1, offDmg);
             const offCrit = this.rollCrit(attacker);
             const offFinal = offCrit.isCrit ? Math.floor(offDmg * offCrit.multiplier) : offDmg;
-            this.applyDamage(attacker, target, offFinal, null, { isCrit: offCrit.isCrit });
+            this.applyDamage(attacker, target, offFinal, null, { isCrit: offCrit.isCrit, skillName: '副手普通攻击' });
             this.addLog(`⚔️ ${attacker.name} 副手攻击，造成 ${offFinal} 点伤害${offCrit.isCrit ? '（暴击！）' : ''}`, 'combat');
         }
 
@@ -2506,7 +2507,7 @@ export class DungeonCombatSystem {
         const statValue = attacker.stats?.[skill.damage?.stat || 'agility'] || attacker.stats?.agility || 10;
         const damage = Math.floor(damageData.base + (statValue * damageData.scaling));
         
-        this.applyDamage(attacker, target, damage, skill.id);
+        this.applyDamage(attacker, target, damage, skill.id, { skillName: skill.name });
         this.addLog(`💀 ${attacker.name} 使用 ${skill.name} (${comboPoints}连击点)，对 ${target.name} 造成 ${damage} 点伤害！`, 'combat', this._getUnitClassColor(attacker));
         
         // 消耗所有连击点
@@ -2536,7 +2537,7 @@ export class DungeonCombatSystem {
 
         for (const target of targets) {
             if (target.currentHp <= 0) continue;
-            this.applyDamage(attacker, target, baseDamage, skill.id, { damageType: skill.damageType || 'physical' });
+            this.applyDamage(attacker, target, baseDamage, skill.id, { damageType: skill.damageType || 'physical', skillName: skill.name });
             totalDamage += baseDamage;
             
             // 使用 EffectSystem 施加附带效果（每个目标都施加）

@@ -19,7 +19,11 @@
             :key="num.key"
             class="floating-number"
             :class="{ crit: num.isCrit, heal: num.isHeal }"
-          >{{ num.text }}</span>
+          >
+            <span v-if="num.skillName" class="float-skill-name">{{ num.skillName }}</span>
+            <span class="float-damage-value">{{ num.text }}</span>
+            <span v-if="num.isCrit && !num.isHeal" class="float-crit-label">暴击</span>
+          </span>
         </transition-group>
       </div>
 
@@ -389,6 +393,31 @@ function onClick() {
   text-shadow: 0 0 4px rgba(0, 0, 0, 0.8), 1px 1px 0 #000;
   white-space: nowrap;
   animation: damageFloat 0.8s ease-out forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.float-skill-name {
+  font-size: 10px;
+  opacity: 0.85;
+  font-weight: normal;
+  color: inherit;
+  letter-spacing: 0.5px;
+}
+
+.float-damage-value {
+  font-weight: bold;
+  font-size: inherit;
+}
+
+.float-crit-label {
+  font-size: 10px;
+  color: var(--primary-gold);
+  font-weight: bold;
+  text-shadow: 0 0 4px #ff6600, 1px 1px 0 #000;
+  letter-spacing: 1px;
 }
 
 .floating-number.crit {

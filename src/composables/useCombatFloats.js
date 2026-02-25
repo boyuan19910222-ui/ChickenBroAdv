@@ -12,10 +12,10 @@ export function useCombatFloats() {
   let keyCounter = 0
   const timers = []
 
-  function spawnFloatingNumber(unitId, damage, isCrit, isHeal = false) {
+  function spawnFloatingNumber(unitId, damage, isCrit, isHeal = false, skillName = null) {
     const key = ++keyCounter
     const text = isHeal ? `+${damage}` : `-${damage}`
-    const entry = { key, text, isCrit: !!isCrit, isHeal: !!isHeal }
+    const entry = { key, text, isCrit: !!isCrit, isHeal: !!isHeal, skillName: skillName || null }
 
     if (!floatingNumbers[unitId]) {
       floatingNumbers[unitId] = []

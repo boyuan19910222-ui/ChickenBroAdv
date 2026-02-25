@@ -129,11 +129,11 @@ export const GameData = {
                 spirit: 1
             },
             // 基础技能（创建角色时直接获得）
-            baseSkills: ['heroicStrike', 'charge', 'rend', 'battleShout'],
+            baseSkills: ['basicAttack', 'heroicStrike', 'charge', 'rend', 'battleShout'],
             // 所有技能（含天赋解锁技能，供UI参考）
             skills: [
-                // 基础技能 (4个)
-                'heroicStrike', 'charge', 'rend', 'battleShout',
+                // 基础技能
+                'basicAttack', 'heroicStrike', 'charge', 'rend', 'battleShout',
                 // 武器树天赋解锁 (2个)
                 'cleave', 'mortalStrike',
                 // 狂暴树天赋解锁 (2个)
@@ -273,11 +273,11 @@ export const GameData = {
                 spirit: 1
             },
             // 基础技能（创建角色时直接获得）
-            baseSkills: ['shadowStrike', 'eviscerate', 'stealth', 'ambush', 'evade'],
+            baseSkills: ['basicAttack', 'shadowStrike', 'eviscerate', 'stealth', 'ambush', 'evade'],
             // 所有技能（含天赋解锁技能，供UI参考）
             skills: [
-                // 基础技能 (5个)
-                'shadowStrike', 'eviscerate', 'stealth', 'ambush', 'evade',
+                // 基础技能
+                'basicAttack', 'shadowStrike', 'eviscerate', 'stealth', 'ambush', 'evade',
                 // 刺杀树天赋解锁 (2个)
                 'deadlyPoison', 'mutilate',
                 // 战斗树天赋解锁 (2个)
@@ -2834,7 +2834,9 @@ export const GameData = {
             skillType: 'melee', damageType: 'physical', targetType: 'enemy', range: 'melee',
             resourceCost: null, actionPoints: 1, cooldown: 0,
             damage: { base: 8, scaling: 1.2, stat: 'strength' },
-            heal: null, effects: [], comboPoints: null, generatesResource: null, conditions: null
+            heal: null, effects: [], comboPoints: null, generatesResource: null,
+            attackResourceGen: true, // 使用攻击触发型资源生成（怒气等）
+            conditions: null
         },
         orcRage: {
             id: 'orcRage', name: '兽人狂怒', emoji: '💢',
