@@ -19,8 +19,26 @@ jobs:
         password: ${{ secrets.SERVER_PASSWORD }}
         script: |
           cd /opt/chickenbro
+          
+          # 备份数据库文件（防止 git reset 覆盖）
+          if [ -f data/chickenBro.db ]; then
+            cp -f data/chickenBro.db /tmp/chickenBro.db.backup
+            cp -f data/chickenBro.db-shm /tmp/chickenBro.db-shm.backup 2>/dev/null || true
+            cp -f data/chickenBro.db-wal /tmp/chickenBro.db-wal.backup 2>/dev/null || true
+            echo "Database backed up"
+          fi
+          
           git fetch origin
           git reset --hard origin/main
+          
+          # 恢复数据库文件
+          if [ -f /tmp/chickenBro.db.backup ]; then
+            cp -f /tmp/chickenBro.db.backup data/chickenBro.db
+            cp -f /tmp/chickenBro.db-shm.backup data/chickenBro.db-shm 2>/dev/null || true
+            cp -f /tmp/chickenBro.db-wal.backup data/chickenBro.db-wal 2>/dev/null || true
+            echo "Database restored"
+          fi
+          
           npm ci --production=false
           npm run build
           pm2 restart chickenbro-server || pm2 start ecosystem.config.cjs
