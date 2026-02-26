@@ -19,6 +19,7 @@ import { SeededRandom } from '../core/SeededRandom.js';
 import { setRandom, getRandom } from '../core/RandomProvider.js';
 import { useMultiplayerStore } from '../stores/multiplayerStore.js';
 import { useGameStore } from '../stores/gameStore.js';
+import { useAuthStore } from '../stores/authStore.js';
 
 export class MultiplayerDungeonAdapter {
     constructor() {
@@ -37,6 +38,7 @@ export class MultiplayerDungeonAdapter {
         const { dungeonId, seed, snapshots, roomId } = initData;
         const multiplayerStore = useMultiplayerStore();
         const gameStore = useGameStore();
+        const authStore = useAuthStore();
 
         console.log(`[MultiplayerDungeonAdapter] 启动多人副本: ${dungeonId}, seed=${seed}, players=${snapshots?.length}`);
 
@@ -46,15 +48,16 @@ export class MultiplayerDungeonAdapter {
         setRandom(seededRandom);
 
         // 2. 获取当前用户ID
-        const currentUserId = multiplayerStore.user?.id;
-        if (!currentUserId) {
+        const currentUserId = this._resolveCurrentUserId(multiplayerStore, authStore);
+        if (currentUserId == null) {
             console.error('[MultiplayerDungeonAdapter] 无法获取当前用户ID');
             this.cleanup();
             return;
         }
+        const normalizedCurrentUserId = String(currentUserId);
 
         // 3. 构建队伍
-        const party = PartyFormationSystem.createDungeonPartyFromSnapshots(snapshots, currentUserId);
+        const party = PartyFormationSystem.createDungeonPartyFromSnapshots(snapshots, normalizedCurrentUserId);
         if (!party || party.length === 0) {
             console.error('[MultiplayerDungeonAdapter] 队伍构建失败');
             this.cleanup();
@@ -62,7 +65,7 @@ export class MultiplayerDungeonAdapter {
         }
 
         // 4. 找到当前用户的角色快照作为 player 数据
-        const mySnapshot = snapshots.find(s => s.ownerId === currentUserId);
+        const mySnapshot = snapshots.find(s => String(s.ownerId) === normalizedCurrentUserId);
         const playerSnapshot = mySnapshot || snapshots[0];
 
         // 5. 创建 MultiplayerEngineAdapter
@@ -92,7 +95,7 @@ export class MultiplayerDungeonAdapter {
         // 8. 监听 battle:loot Socket 事件
         if (multiplayerStore.socket) {
             const onLoot = ({ userId, items }) => {
-                if (userId === currentUserId) {
+                if (String(userId) === normalizedCurrentUserId) {
                     console.log('[MultiplayerDungeonAdapter] 收到个人掉落:', items?.length, '件');
                     multiplayerStore.lootItems = items || [];
                     gameStore.eventBus.emit('multiplayer:lootReceived', { items });
@@ -145,6 +148,23 @@ export class MultiplayerDungeonAdapter {
             console.log(`[MultiplayerDungeonAdapter] 断线重连，从第 ${startEncounterIndex} 波继续`)
         }
         await this.dungeonCombatSystem.startDungeonMultiplayer(dungeonId, party, { startEncounterIndex })
+    }
+
+    _resolveCurrentUserId(multiplayerStore, authStore) {
+        const candidates = [
+            multiplayerStore?.user?.id,
+            authStore?.user?.id,
+        ];
+
+        try {
+            const localUser = JSON.parse(localStorage.getItem('mp_user') || 'null');
+            candidates.push(localUser?.id);
+        } catch (error) {
+            console.warn('[MultiplayerDungeonAdapter] 读取本地用户信息失败:', error);
+        }
+
+        const matched = candidates.find(id => id !== undefined && id !== null && id !== '');
+        return matched ?? null;
     }
 
     /**

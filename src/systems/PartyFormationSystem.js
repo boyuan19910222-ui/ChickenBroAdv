@@ -607,7 +607,7 @@ export const PartyFormationSystem = {
             // 确定该成员对于当前客户端是否是"自己的角色"
             // 注意：在多人模式 autoPlayMode 下，isPlayer 仅影响 UI 高亮，不影响操作
             // 所有角色都由 AI 控制
-            const isCurrentUser = snapshot.ownerId === currentUserId;
+            const isCurrentUser = String(snapshot.ownerId) === String(currentUserId);
             
             const member = {
                 id: snapshot.id,
