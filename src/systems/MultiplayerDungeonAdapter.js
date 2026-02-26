@@ -92,9 +92,9 @@ export class MultiplayerDungeonAdapter {
             gameStore.eventBus.off('dungeon:defeat', onDefeat);
         });
 
-        // 8. 监听 battle:loot Socket 事件
+        // 8. 监听 battle:reward Socket 事件
         if (multiplayerStore.socket) {
-            const onLoot = ({ userId, items }) => {
+            const onReward = ({ userId, items }) => {
                 if (String(userId) === normalizedCurrentUserId) {
                     console.log('[MultiplayerDungeonAdapter] 收到个人掉落:', items?.length, '件');
                     multiplayerStore.lootItems = items || [];
@@ -105,11 +105,11 @@ export class MultiplayerDungeonAdapter {
                 console.log('[MultiplayerDungeonAdapter] 服务端结算完成');
                 gameStore.eventBus.emit('multiplayer:battleFinished');
             };
-            
-            multiplayerStore.socket.on('battle:loot', onLoot);
+
+            multiplayerStore.socket.on('battle:reward', onReward);
             multiplayerStore.socket.on('battle:finished_server', onFinished);
             this._cleanupFns.push(() => {
-                multiplayerStore.socket?.off('battle:loot', onLoot);
+                multiplayerStore.socket?.off('battle:reward', onReward);
                 multiplayerStore.socket?.off('battle:finished_server', onFinished);
             });
         }

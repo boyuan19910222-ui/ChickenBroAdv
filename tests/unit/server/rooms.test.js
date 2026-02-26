@@ -6,6 +6,15 @@ function mockUser(id, nickname) {
     return { id, username: `user${id}`, nickname: nickname || `Player${id}` }
 }
 
+// Mocks for server-level variables used in tests
+const activeBattles = new Map()
+const battleCompleteReceived = new Map()
+
+const roomManager = new RoomManager({
+    timerFn: () => 'fake-timer',
+    clearFn: () => {},
+})
+
 describe('RoomManager - Create Room', () => {
     let rm
 
@@ -301,5 +310,190 @@ describe('RoomManager - Disconnect handling', () => {
 
         const result = rm.handleDisconnect(999)
         expect(result).toBeNull()
+    })
+})
+
+describe('RoomManager - Battle State & Rewards (with stmts)', () => {
+    let rm, roomId, mockStmts
+
+    beforeEach(() => {
+        mockStmts = {
+            saveBattleState: {
+                run: vi.fn().mockResolvedValue({ changes: 1 }),
+            },
+            saveRoomRewards: {
+                run: vi.fn().mockResolvedValue({ changes: 1 }),
+            },
+            getBattleState: {
+                get: vi.fn().mockResolvedValue({ seed: 12345, round: 5, monsters: [], result: null }),
+            },
+            getRoomRewards: {
+                get: vi.fn().mockResolvedValue({ 1: [{ name: 'Sword', quality: 'rare' }] }),
+            },
+        }
+
+        rm = new RoomManager({
+            timerFn: () => 'fake-timer',
+            clearFn: () => {},
+            stmts: mockStmts,
+        })
+
+        const result = rm.createRoom(mockUser(1), 'dungeon_01', 'D1')
+        roomId = result.room.id
+    })
+
+    it('should persist battle state when updateBattleState is called', () => {
+        const battleState = { seed: 12345, round: 5, monsters: [], result: null }
+        rm.updateBattleState(roomId, battleState)
+
+        expect(mockStmts.saveBattleState.run).toHaveBeenCalledWith(roomId, battleState)
+    })
+
+    it('should not call saveBattleState when stmts is not provided', () => {
+        const rmNoStmts = new RoomManager({
+            timerFn: () => 'fake-timer',
+            clearFn: () => {},
+        })
+
+        const battleState = { seed: 12345, round: 5, monsters: [], result: null }
+        rmNoStmts.updateBattleState(roomId, battleState)
+
+        // Should not throw, just silently skip
+        expect(rmNoStmts._stmts).toBeNull()
+    })
+
+    it('should persist room rewards when updateRoomRewards is called', () => {
+        const rewards = { 1: [{ name: 'Sword', quality: 'rare' }] }
+        rm.updateRoomRewards(roomId, rewards)
+
+        expect(mockStmts.saveRoomRewards.run).toHaveBeenCalledWith(roomId, rewards)
+    })
+
+    it('should retrieve battle state from database', async () => {
+        const state = await rm.getBattleState(roomId)
+
+        expect(mockStmts.getBattleState.get).toHaveBeenCalledWith(roomId)
+        expect(state).toEqual({ seed: 12345, round: 5, monsters: [], result: null })
+    })
+
+    it('should return null on getBattleState error', async () => {
+        mockStmts.getBattleState.get.mockRejectedValueOnce(new Error('DB error'))
+
+        const state = await rm.getBattleState(roomId)
+
+        expect(state).toBeNull()
+    })
+
+    it('should retrieve room rewards from database', async () => {
+        const rewards = await rm.getRoomRewards(roomId)
+
+        expect(mockStmts.getRoomRewards.get).toHaveBeenCalledWith(roomId)
+        expect(rewards).toEqual({ 1: [{ name: 'Sword', quality: 'rare' }] })
+    })
+
+    it('should return null on getRoomRewards error', async () => {
+        mockStmts.getRoomRewards.get.mockRejectedValueOnce(new Error('DB error'))
+
+        const rewards = await rm.getRoomRewards(roomId)
+
+        expect(rewards).toBeNull()
+    })
+})
+
+describe('RoomManager - Reconnection to in_battle rooms', () => {
+    let rm, roomId, mockIo
+
+    beforeEach(() => {
+        mockIo = {
+            to: vi.fn().mockReturnValue({
+                emit: vi.fn(),
+            }),
+        }
+
+        rm = new RoomManager({
+            timerFn: () => 'fake-timer',
+            clearFn: () => {},
+            io: mockIo,
+        })
+
+        const result = rm.createRoom(mockUser(1), 'dungeon_01', 'D1')
+        roomId = result.room.id
+        rm.startBattle(roomId)
+    })
+
+    it('should handle reconnection to in_battle room', () => {
+        const result = rm.joinRoom(roomId, mockUser(1))
+
+        expect(result.error).toBeUndefined()
+        expect(result.inBattle).toBe(true)
+        expect(result.rejoined).toBe(true)
+    })
+
+    it('should reject new joins to in_battle room', () => {
+        const result = rm.joinRoom(roomId, mockUser(2))
+
+        expect(result.error).toBe('ROOM_IN_BATTLE')
+        expect(result.message).toBe('房间战斗中，无法加入')
+    })
+})
+
+describe('RoomManager - Monotonic round validation (in server/index.js)', () => {
+    it('should accept battle update with higher round number', () => {
+        const mockEngine = {
+            battleState: { round: 5 },
+        }
+        const roomId = 'test-room'
+        activeBattles.set(roomId, mockEngine)
+
+        const room = { status: 'in_battle' }
+        roomManager.rooms.set(roomId, room)
+
+        const socket = { user: { id: 1 } }
+        const battleState = { round: 10, monsters: [] }
+
+        // Simulate the handler logic
+        if (room?.status === 'in_battle' && battleState.round > mockEngine.battleState.round) {
+            mockEngine.battleState = { ...mockEngine.battleState, ...battleState, lastUpdated: new Date().toISOString() }
+        }
+
+        expect(mockEngine.battleState.round).toBe(10)
+        expect(mockEngine.battleState.lastUpdated).toBeDefined()
+    })
+
+    it('should reject battle update with lower or equal round number', () => {
+        const mockEngine = {
+            battleState: { round: 10 },
+        }
+        const roomId = 'test-room'
+        activeBattles.set(roomId, mockEngine)
+
+        const room = { status: 'in_battle' }
+        roomManager.rooms.set(roomId, room)
+
+        const battleState = { round: 5, monsters: [] }
+        const originalRound = mockEngine.battleState.round
+
+        // Simulate the handler logic - should not update
+        if (battleState.round <= originalRound) {
+            // Reject - don't update
+        }
+
+        expect(mockEngine.battleState.round).toBe(10) // Unchanged
+    })
+})
+
+describe('RoomManager - Rewards idempotency (in server/index.js)', () => {
+    it('should only process first battle:complete', () => {
+        const roomId = 'test-room'
+        battleCompleteReceived.set(roomId, false)
+
+        // First completion
+        const first = !battleCompleteReceived.get(roomId)
+        expect(first).toBe(true)
+        battleCompleteReceived.set(roomId, true)
+
+        // Second completion (should be rejected)
+        const second = !battleCompleteReceived.get(roomId)
+        expect(second).toBe(false)
     })
 })

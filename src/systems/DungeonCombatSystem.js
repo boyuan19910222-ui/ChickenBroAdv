@@ -352,9 +352,10 @@ export class DungeonCombatSystem {
         
         // === 随机精英怪（25%概率，1~2只） ===
         const hasElite = this._rollEliteChance();
-        
-        // === 每波怪物数量随机 3~5 只；精英波强制满编 5 只 ===
-        const targetCount = hasElite ? 5 : (3 + randomInt(0, 2));
+
+        // === 每波怪物数量确定 3~5 只（多人模式下使用确定性算法确保同步）
+        // 使用波次索引作为种子因子，确保所有客户端在同一波次看到相同怪物数量
+        const targetCount = hasElite ? 5 : (3 + (this.encounterIndex % 3));
         enemies = this._padEnemies(enemies, targetCount, encounterData);
         // 如果基础怪物超过目标数量，随机裁剪（保留前 targetCount 只）
         if (enemies.length > targetCount) {

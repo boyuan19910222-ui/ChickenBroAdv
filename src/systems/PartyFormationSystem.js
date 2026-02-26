@@ -608,7 +608,13 @@ export const PartyFormationSystem = {
             // 注意：在多人模式 autoPlayMode 下，isPlayer 仅影响 UI 高亮，不影响操作
             // 所有角色都由 AI 控制
             const isCurrentUser = String(snapshot.ownerId) === String(currentUserId);
-            
+
+            // 区分真人玩家和AI玩家：
+            // - isAI = true 表示AI玩家（服务端创建的AI）
+            // - isAI = false 且 ownerId > 0 表示真人玩家（其他玩家）
+            const isRealHumanPlayer = snapshot.isAI === false && snapshot.ownerId > 0;
+            const isAIPlayer = snapshot.isAI === true;
+
             const member = {
                 id: snapshot.id,
                 name: snapshot.name || `角色_${snapshot.id}`,
@@ -617,8 +623,10 @@ export const PartyFormationSystem = {
                 role: snapshot.role || this.determineRole(classId, snapshot.primaryTalent),
                 slot: snapshot.slot || 1,
                 level: snapshot.level || 1,
-                isPlayer: isCurrentUser,  // 当前用户的角色标记为 isPlayer
-                isAI: snapshot.isAI !== undefined ? snapshot.isAI : !isCurrentUser,
+                // 在多人模式中，真人玩家都应标记为 isPlayer = true，AI玩家为 isAI = true
+                // isPlayer 主要用于UI高亮当前玩家自己的角色
+                isPlayer: isRealHumanPlayer,
+                isAI: isAIPlayer,
                 isOnline: snapshot.isOnline !== undefined ? snapshot.isOnline : true,
                 ownerId: snapshot.ownerId || null,
                 icon: snapshot.icon || this._getClassIcon(classId),
