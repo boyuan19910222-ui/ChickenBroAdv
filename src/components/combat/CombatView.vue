@@ -342,13 +342,13 @@ onMounted(() => {
   }
 
   const onPlayerAttack = (data) => {
-    combatFloats.spawnFloatingNumber('enemy', data.damage, data.isCrit)
+    combatFloats.spawnFloatingNumber('enemy', data.damage, data.isCrit, false, data.skillName || '普通攻击')
     syncCombatState()
   }
 
   const onSkillUsed = (data) => {
     if (data.damage > 0) {
-      combatFloats.spawnFloatingNumber('enemy', data.damage, data.isCrit)
+      combatFloats.spawnFloatingNumber('enemy', data.damage, data.isCrit, false, data.skillName || data.skill?.name)
     }
     syncCombatState()
   }

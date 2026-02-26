@@ -2,6 +2,11 @@
   <div class="character-select-scene">
     <!-- 右上角反馈二维码 + 退出登录 -->
     <div class="top-right">
+      <button class="feedback-btn" @click="showChangelog = true" style="margin-right: 8px;">
+        <span>📜</span>
+        <span>更新日志</span>
+      </button>
+
       <div class="feedback-btn-wrapper">
         <button class="feedback-btn" @mouseenter="showQrcode = true" @mouseleave="showQrcode = false">
           <span>💬</span>
@@ -74,6 +79,8 @@
         </div>
       </div>
     </div>
+    
+    <ChangelogModal :show="showChangelog" @close="showChangelog = false" />
   </div>
 </template>
 
@@ -84,12 +91,14 @@ import { useAuthStore } from '@/stores/authStore.js'
 import { useGameStore } from '@/stores/gameStore.js'
 import { useMultiplayerStore } from '@/stores/multiplayerStore.js'
 import { characterApi } from '@/services/api.js'
+import ChangelogModal from '@/components/modals/ChangelogModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
 const mpStore = useMultiplayerStore()
 
+const showChangelog = ref(false)
 const showQrcode = ref(false)
 const loading = ref(true)
 const error = ref(null)
@@ -136,6 +145,7 @@ async function loadCharacters() {
 
 async function selectCharacter(char) {
   try {
+    console.log('选择角色', char)
     error.value = null
     const data = await characterApi.getById(char.id)
     
@@ -410,6 +420,7 @@ onMounted(() => {
   opacity: 0.5;
   transition: opacity 0.2s;
   font-size: 14px;
+  z-index: 10;
 }
 
 .delete-btn:hover {
@@ -423,6 +434,7 @@ onMounted(() => {
   gap: 8px;
   padding: 24px 12px;
   border-style: dashed;
+  grid-column: 1 / -1;
 }
 
 .create-icon {
@@ -460,6 +472,11 @@ onMounted(() => {
   margin-top: 16px;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* 模态框 */
 .modal-overlay {
   position: fixed;
@@ -471,7 +488,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: 9999;
 }
 
 .modal-panel {
@@ -517,10 +534,5 @@ onMounted(() => {
 
 .modal-buttons .pixel-btn.danger:hover {
   background: #cc3333;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 </style>

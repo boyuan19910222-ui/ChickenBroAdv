@@ -19,7 +19,11 @@
             :key="num.key"
             class="floating-number"
             :class="{ crit: num.isCrit, heal: num.isHeal }"
-          >{{ num.text }}</span>
+          >
+            <span v-if="num.skillName" class="float-skill-name">{{ num.skillName }}</span>
+            <span class="float-damage-value">{{ num.text }}</span>
+            <span v-if="num.isCrit && !num.isHeal" class="float-crit-label">暴击</span>
+          </span>
         </transition-group>
       </div>
 
@@ -389,13 +393,38 @@ function onClick() {
   text-shadow: 0 0 4px rgba(0, 0, 0, 0.8), 1px 1px 0 #000;
   white-space: nowrap;
   animation: damageFloat 0.8s ease-out forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.float-skill-name {
+  font-size: 10px;
+  opacity: 0.85;
+  font-weight: normal;
+  color: inherit;
+  letter-spacing: 0.5px;
+}
+
+.float-damage-value {
+  font-weight: bold;
+  font-size: inherit;
+}
+
+.float-crit-label {
+  font-size: 10px;
+  color: var(--primary-gold);
+  font-weight: bold;
+  text-shadow: 0 0 4px #ff6600, 1px 1px 0 #000;
+  letter-spacing: 1px;
 }
 
 .floating-number.crit {
-  font-size: var(--fs-md);
+  font-size: calc(var(--fs-md) * 3);
   color: var(--primary-gold);
   text-shadow: 0 0 8px #ff6600, 0 0 16px #ff3300, 0 0 24px var(--color-damage), 1px 1px 0 #000;
-  animation: critDamageFloat 1.2s ease-out forwards;
+  animation: critDamageFloat 2.4s ease-out forwards;
 }
 
 .floating-number.heal {
@@ -452,6 +481,7 @@ function onClick() {
   8% { opacity: 1; transform: translateY(-5px) scale(1.6); }
   20% { opacity: 1; transform: translateY(-12px) scale(1.3); }
   100% { opacity: 0; transform: translateY(-65px) scale(0.7); }
+  /* 动画时长为 2.4s（普通的两倍），由 .floating-number.crit 的 animation 属性控制 */
 }
 
 @keyframes healFloat {

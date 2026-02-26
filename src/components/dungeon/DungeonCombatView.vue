@@ -564,7 +564,7 @@ onMounted(() => {
   unsubscribers.push(
     eventBus.on('dungeon:damageDealt', (data) => {
       if (data.target?.id && data.damage != null) {
-        combatFloats.spawnFloatingNumber(data.target.id, data.damage, data.isCrit)
+        combatFloats.spawnFloatingNumber(data.target.id, data.damage, data.isCrit, false, data.skillName)
       }
     })
   )
@@ -573,7 +573,7 @@ onMounted(() => {
   unsubscribers.push(
     eventBus.on('dungeon:damageReceived', (data) => {
       if (data.target?.id && data.damage != null) {
-        combatFloats.spawnFloatingNumber(data.target.id, data.damage, data.isCrit)
+        combatFloats.spawnFloatingNumber(data.target.id, data.damage, data.isCrit, false, data.skillName)
       }
     })
   )
@@ -582,7 +582,7 @@ onMounted(() => {
   unsubscribers.push(
     eventBus.on('dungeon:healingDone', (data) => {
       if (data.target?.id && data.amount != null) {
-        combatFloats.spawnFloatingNumber(data.target.id, data.amount, false, true)
+        combatFloats.spawnFloatingNumber(data.target.id, data.amount, false, true, data.skillName)
       }
     })
   )

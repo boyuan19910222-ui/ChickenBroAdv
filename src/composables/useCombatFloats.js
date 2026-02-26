@@ -12,10 +12,10 @@ export function useCombatFloats() {
   let keyCounter = 0
   const timers = []
 
-  function spawnFloatingNumber(unitId, damage, isCrit, isHeal = false) {
+  function spawnFloatingNumber(unitId, damage, isCrit, isHeal = false, skillName = null) {
     const key = ++keyCounter
     const text = isHeal ? `+${damage}` : `-${damage}`
-    const entry = { key, text, isCrit: !!isCrit, isHeal: !!isHeal }
+    const entry = { key, text, isCrit: !!isCrit, isHeal: !!isHeal, skillName: skillName || null }
 
     if (!floatingNumbers[unitId]) {
       floatingNumbers[unitId] = []
@@ -27,8 +27,8 @@ export function useCombatFloats() {
       triggerShake(unitId, !!isCrit)
     }
 
-    // Auto-remove after animation
-    const duration = isCrit ? 1200 : 800
+    // Auto-remove after animation (crit: 2.4s, normal: 0.8s)
+    const duration = isCrit ? 2400 : 800
     const timer = setTimeout(() => {
       const arr = floatingNumbers[unitId]
       if (arr) {

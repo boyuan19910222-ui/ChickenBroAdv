@@ -303,7 +303,7 @@ export class CombatSystem {
         this.enemy.currentHp = Math.max(0, this.enemy.currentHp - finalDamage);
         
         const critText = isCrit ? '💥暴击！' : '';
-        this.addLog(`${player.name} 攻击 ${this.enemy.name}，${critText}造成 ${finalDamage} 点伤害！`, 'combat', this._getPlayerClassColor());
+        this.addLog(`${player.name} 普通攻击 ${this.enemy.name}，${critText}造成 ${finalDamage} 点伤害！`, 'combat', this._getPlayerClassColor());
         
         // 副手攻击（双持）
         const offHand = player.equipment?.offHand;
@@ -325,7 +325,7 @@ export class CombatSystem {
         player.statistics.damageDealt += finalDamage;
         this.engine.stateManager.set('player', player);
         
-        this.engine.eventBus.emit('combat:playerAttack', { damage: finalDamage, isCrit });
+        this.engine.eventBus.emit('combat:playerAttack', { damage: finalDamage, isCrit, skillName: '普通攻击' });
     }
 
     /**
@@ -356,6 +356,11 @@ export class CombatSystem {
             amount = resourceConfig.generation.onHit;
         }
         
+        // 能量暴击额外回复（仅普通攻击触发）
+        if (trigger === 'attack' && isCrit && resourceConfig.generation.onAttackCrit) {
+            amount += resourceConfig.generation.onAttackCrit;
+        }
+
         if (amount > 0) {
             const oldValue = player.resource.current;
             player.resource.current = Math.min(player.resource.max, player.resource.current + amount);
@@ -487,14 +492,17 @@ export class CombatSystem {
             this.addLog(`${player.name} 使用 ${skill.name}，${critText}造成 ${actualDamage} 点${dmgTypeEmoji}伤害！`, 'combat', this._getPlayerClassColor());
             player.statistics.damageDealt += actualDamage;
             
-            // Builder 产生连击点（新 schema: comboPoints.generates）
+            // Builder 产生连击点（新 schema: comboPoints.generates，暴击时使用 critGenerates）
             const generates = skill.comboPoints?.generates || skill.comboPointsGenerated;
             if (generates && player.comboPoints) {
+                const critGenerates = skill.comboPoints?.critGenerates;
+                const actualGenerates = (skillIsCrit && critGenerates) ? critGenerates : generates;
                 const oldCombo = player.comboPoints.current;
-                player.comboPoints.current = Math.min(player.comboPoints.max, player.comboPoints.current + generates);
+                player.comboPoints.current = Math.min(player.comboPoints.max, player.comboPoints.current + actualGenerates);
                 const actualGain = player.comboPoints.current - oldCombo;
                 if (actualGain > 0) {
-                    this.addLog(`🗡️ +${actualGain} 连击点`, 'system', this._getPlayerClassColor());
+                    const critHint = (skillIsCrit && critGenerates && actualGenerates > generates) ? '（暴击）' : '';
+                    this.addLog(`🗡️ +${actualGain} 连击点${critHint}`, 'system', this._getPlayerClassColor());
                 }
             }
             
@@ -544,7 +552,13 @@ export class CombatSystem {
         }
 
         this.engine.stateManager.set('player', player);
-        this.engine.eventBus.emit('combat:skillUsed', { skill, player, damage: skillDamage, isCrit: skillIsCrit });
+
+        // 攻击触发型资源生成（如普通攻击产生怒气）
+        if (skill.attackResourceGen) {
+            this.generateResource(player, 'attack', skillIsCrit);
+        }
+
+        this.engine.eventBus.emit('combat:skillUsed', { skill, player, damage: skillDamage, isCrit: skillIsCrit, skillName: skill.name });
     }
 
     /**
@@ -627,6 +641,25 @@ export class CombatSystem {
         if (!this.inCombat) return;
 
         const player = this.engine.stateManager.get('player');
+
+        // 检查玩家是否处于潜行状态：敌人无法感知，跳过本回合攻击
+        if (EffectSystem.isStealthed(player)) {
+            this.addLog(`🫥 ${player.name} 处于潜行状态，${this.enemy.name} 未能发现目标，跳过攻击！`, 'system');
+            // 回合结束结算
+            EffectSystem.processEndOfTurn([player, this.enemy], {});
+            this.regenerateEnergyPerTurn(player);
+            this.engine.stateManager.set('player', player);
+            if (this.checkCombatEnd()) return;
+            Object.keys(player.skillCooldowns).forEach(skillId => {
+                if (player.skillCooldowns[skillId] > 0) player.skillCooldowns[skillId]--;
+            });
+            this.turnCount++;
+            this.currentTurn = 'player';
+            this.updateCombatState();
+            this.addLog(`--- 第 ${this.turnCount} 回合 ---`, 'system');
+            this.engine.eventBus.emit('combat:turnChange', { turn: 'player', turnCount: this.turnCount });
+            return;
+        }
         
         // 检查敌人是否被 CC 控制（使用 EffectSystem）
         if (EffectSystem.isUnitCCed(this.enemy)) {
@@ -717,6 +750,13 @@ export class CombatSystem {
             onHeal: (unit, heal, source) => {
                 this.addLog(`${unit.name || '目标'} 恢复 ${heal} 点生命（${source}）！`, 'combat');
                 if (unit === player) player.statistics.healingDone += heal;
+            },
+            onEffectExpired: (unit, buff) => {
+                if (buff.type === 'stealth') {
+                    this.addLog(`🫥 ${unit.name} 的潜行状态已结束！`, 'system');
+                    // 同步清除潜行减速 buff
+                    if (unit.buffs) unit.buffs = unit.buffs.filter(b => b.name !== 'stealthSpeed');
+                }
             }
         });
         

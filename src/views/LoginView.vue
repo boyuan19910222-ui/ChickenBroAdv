@@ -1,7 +1,12 @@
 <template>
   <div class="login-scene">
-    <!-- 右上角反馈二维码 -->
-    <div class="feedback-btn-wrapper">
+    <!-- 右上角反馈及更新日志 -->
+    <div class="top-right">
+      <button class="feedback-btn" @click="showChangelog = true" style="margin-right: 8px;">
+        <span>📜</span>
+        <span>更新日志</span>
+      </button>
+      <div class="feedback-btn-wrapper">
       <button class="feedback-btn" @mouseenter="showQrcode = true" @mouseleave="showQrcode = false">
         <span>💬</span>
         <span>反馈</span>
@@ -10,6 +15,7 @@
         <img src="/images/feedback_qrcode.jpg" alt="扫码反馈" />
         <p>扫码反馈</p>
       </div>
+    </div>
     </div>
 
     <div class="login-container pixel-panel">
@@ -125,6 +131,8 @@
         </button>
       </form>
     </div>
+
+    <ChangelogModal :show="showChangelog" @close="showChangelog = false" />
   </div>
 </template>
 
@@ -132,12 +140,14 @@
 import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore.js'
+import ChangelogModal from '@/components/modals/ChangelogModal.vue'
 import { useMultiplayerStore } from '@/stores/multiplayerStore.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
 
+const showChangelog = ref(false)
 const showQrcode = ref(false)
 const activeTab = ref('login')
 
@@ -316,12 +326,20 @@ onUnmounted(() => {
   padding: 10px;
 }
 
-/* 反馈按钮 */
-.feedback-btn-wrapper {
+/* 右上角工具栏 */
+.top-right {
   position: fixed;
   top: 16px;
   right: 16px;
   z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 反馈按钮 */
+.feedback-btn-wrapper {
+  position: relative;
 }
 
 .feedback-btn {
