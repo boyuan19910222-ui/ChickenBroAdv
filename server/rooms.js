@@ -12,6 +12,21 @@ const VALID_CLASS_IDS = ['warrior', 'paladin', 'rogue', 'hunter', 'mage', 'warlo
  *   - timerFn:   replacement for setTimeout  (for testing)
  *   - clearFn:   replacement for clearTimeout (for testing)
  *   - onRoomStart: callback(room) when battle starts
+ *   - io:         Socket.IO instance for emitting events
+ *   - stmts:      Database statement adapters (optional, enables persistence)
+ *
+ * Public methods:
+ *   - createRoom(hostUser, dungeonId, dungeonName, playerSnapshot)
+ *   - joinRoom(roomId, user, playerSnapshot)
+ *   - leaveRoom(roomId, userId)
+ *   - getRoomList()
+ *   - getRoom(roomId)
+ *   - startBattle(roomId)
+ *   - handleDisconnect(userId)
+ *   - updateBattleState(roomId, battleState) - persist battle state to DB
+ *   - updateRoomRewards(roomId, rewards) - persist rewards to DB
+ *   - getBattleState(roomId) - retrieve battle state from DB
+ *   - getRoomRewards(roomId) - retrieve rewards from DB
  */
 export class RoomManager {
     constructor(options = {}) {
@@ -22,6 +37,7 @@ export class RoomManager {
         this._setTimeout = options.timerFn || setTimeout
         this._clearTimeout = options.clearFn || clearTimeout
         this._onRoomStart = options.onRoomStart || null
+        this._io = options.io || null
 
         /** @type {object|null} Statement adapters for DB persistence (optional) */
         this._stmts = options.stmts || null
@@ -115,6 +131,35 @@ export class RoomManager {
         if (!room) {
             return { error: 'ROOM_NOT_FOUND', message: '房间不存在' }
         }
+
+        // Handle reconnection to in_battle rooms
+        if (room.status === 'in_battle') {
+            const existingPlayer = room.players.find(p => p.userId === user.id)
+            if (existingPlayer) {
+                // Player is reconnecting to an in_battle room
+                existingPlayer.isOnline = true
+                this.userRoomMap.set(user.id, roomId)
+
+                // Fetch battle state from database for restore
+                if (this._stmts) {
+                    this.getBattleState(roomId).then(battleState => {
+                        this.getRoomRewards(roomId).then(rewards => {
+                            // Send battle:restore event to the reconnecting player
+                            this._io?.to(roomId).emit('battle:restore', {
+                                battleState,
+                                rewards: rewards || null,
+                            })
+                        }).catch(err => console.error('[rooms] Failed to get room rewards for restore:', err))
+                    }).catch(err => console.error('[rooms] Failed to get battle state for restore:', err))
+                }
+
+                return { room, rejoined: true, inBattle: true }
+            }
+            // Player not in this room, cannot join in_battle room
+            return { error: 'ROOM_IN_BATTLE', message: '房间战斗中，无法加入' }
+        }
+
+        // Normal join flow for waiting rooms
         if (room.status !== 'waiting') {
             return { error: 'ROOM_NOT_WAITING', message: '房间已开始或已结束' }
         }
@@ -302,6 +347,60 @@ export class RoomManager {
 
         // If waiting, fully remove
         return this.leaveRoom(roomId, userId)
+    }
+
+    // ── Battle State & Rewards ───────────────────────────────
+
+    /**
+     * 更新房间战斗状态到数据库
+     * @param {string} roomId
+     * @param {Object} battleState - { seed, round, result, monsters, lastUpdated }
+     */
+    updateBattleState(roomId, battleState) {
+        if (!this._stmts) return
+        this._stmts.saveBattleState.run(roomId, battleState)
+            .catch(err => console.error('[rooms] Failed to update battle state:', err))
+    }
+
+    /**
+     * 更新房间奖励到数据库
+     * @param {string} roomId
+     * @param {Object} rewards - { userId: items[] }
+     */
+    updateRoomRewards(roomId, rewards) {
+        if (!this._stmts) return
+        this._stmts.saveRoomRewards.run(roomId, rewards)
+            .catch(err => console.error('[rooms] Failed to update room rewards:', err))
+    }
+
+    /**
+     * 获取房间战斗状态
+     * @param {string} roomId
+     * @returns {Promise<Object|null>}
+     */
+    async getBattleState(roomId) {
+        if (!this._stmts) return null
+        try {
+            return await this._stmts.getBattleState.get(roomId)
+        } catch (err) {
+            console.error('[rooms] Failed to get battle state:', err)
+            return null
+        }
+    }
+
+    /**
+     * 获取房间奖励
+     * @param {string} roomId
+     * @returns {Promise<Object|null>}
+     */
+    async getRoomRewards(roomId) {
+        if (!this._stmts) return null
+        try {
+            return await this._stmts.getRoomRewards.get(roomId)
+        } catch (err) {
+            console.error('[rooms] Failed to get room rewards:', err)
+            return null
+        }
     }
 
     // ── Internal helpers ────────────────────────────────────

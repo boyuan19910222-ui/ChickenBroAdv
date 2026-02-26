@@ -59,8 +59,8 @@ const chatManager = new ChatManager({ stmts })
 /** @type {Map<string, BattleEngine>} roomId → BattleEngine (kept for loot generation) */
 const activeBattles = new Map()
 
-/** @type {Map<string, boolean>} roomId → whether first battle:complete received */
-const battleCompleteReceived = new Map()
+/** @type {Map<string, Map<number, string>>} roomId → userId → result ('victory'|'defeat') */
+const battleCompletionStatus = new Map()
 
 /**
  * 启动战斗（新版：客户端执行战斗，服务端仅下发初始数据）
@@ -96,7 +96,9 @@ async function launchBattle(room) {
     // 保存 battleState 引用，用于重连时重发 battle:init
     engine.battleState = { seed, snapshots: partySnapshots }
     activeBattles.set(room.id, engine)
-    battleCompleteReceived.set(room.id, false)
+    // 初始化房间完成状态追踪（按玩家）
+    const completionTracking = new Map()
+    battleCompletionStatus.set(room.id, completionTracking)
 
     // 持久化战斗状态，用于断线重连时恢复 battle:init
     stmts.saveBattleState.run(room.id, { seed, snapshots: partySnapshots })
@@ -125,6 +127,7 @@ function sanitizeRoom(room) {
 // Room manager — hook into battle start
 const roomManager = new RoomManager({
     stmts,
+    io,
     onRoomStart(room) {
         // Broadcast battle start to all players in the room
         io.to(room.id).emit('room:battle_start', { room: sanitizeRoom(room) })
@@ -144,9 +147,28 @@ io.on('connection', (socket) => {
     if (existingRoomId) {
         const room = roomManager.getRoom(existingRoomId)
         if (!room || room.status === 'closed') {
-            // 映射已过期（房间已关闭或服务重启后未恢复），清理残留映射
-            roomManager.userRoomMap.delete(socket.user.id)
-            console.log(`[socket] Cleared stale userRoomMap for ${socket.user.username} (roomId=${existingRoomId})`)
+            // 检查数据库中是否有奖励信息（战斗完成后断线的情况）
+            if (room?.status === 'closed' || !room) {
+                // 从数据库查询房间信息
+                stmts.findRoomById.get(existingRoomId).then(dbRoom => {
+                    if (dbRoom && dbRoom.rewards) {
+                        // 发送战斗结果和奖励
+                        const battleState = dbRoom.battle_state || {}
+                        socket.emit('battle:restore', {
+                            battleState: {
+                                seed: battleState.seed,
+                                result: battleState.result || null,
+                            },
+                            rewards: dbRoom.rewards[socket.user.id] || [],
+                        })
+                        console.log(`[socket] Sent battle result and rewards to ${socket.user.username} for finished room ${existingRoomId}`)
+                    } else {
+                        // 真正的过期，清理残留映射
+                        roomManager.userRoomMap.delete(socket.user.id)
+                        console.log(`[socket] Cleared stale userRoomMap for ${socket.user.username} (roomId=${existingRoomId})`)
+                    }
+                }).catch(err => console.error('[socket] Failed to query room for reconnection:', err))
+            }
         } else {
             // 重连时恢复玩家在线状态
             const player = room.players.find(p => p.userId === socket.user.id)
@@ -243,6 +265,29 @@ io.on('connection', (socket) => {
         callback?.({ room: sanitizeRoom(result.room) })
     })
 
+    // ── Battle Events (Client → Server / Server → Client) ────────────
+    /**
+     * WebSocket Event Contracts:
+     *
+     * battle:init (Server → Client): Broadcast when battle starts
+     *   payload: { dungeonId, seed, snapshots, roomId, rejoin?, currentWaveIndex? }
+     *
+     * battle:update (Client → Server): Client reports battle state updates
+     *   payload: { roomId, battleState: { round, monsters[], lastUpdated? } }
+     *
+     * battle:finished (Client → Server): Client reports battle completion (alias: battle:complete)
+     *   payload: { roomId, result: 'victory'|'defeat', dungeonId }
+     *
+     * battle:restore (Server → Client): Server sends battle state for reconnection
+     *   payload: { battleState: { seed, result? }, rewards?: items[] }
+     *
+     * battle:reward (Server → Client): Server sends player rewards
+     *   payload: { userId, items: [] }
+     *
+     * battle:wave_progress (Client → Server): Client reports wave progress
+     *   payload: { roomId, waveIndex, totalWaves }
+     */
+
     // ── 客户端上报波次进度（用于持久化和断线重连恢复）──
     socket.on('battle:wave_progress', ({ roomId, waveIndex, totalWaves }) => {
         const engine = activeBattles.get(roomId)
@@ -263,63 +308,114 @@ io.on('connection', (socket) => {
         console.log(`[battle] Wave progress updated: room=${roomId}, wave=${waveIndex}/${totalWaves}`)
     })
 
+    // ── 客户端上报战斗状态更新（怪物位置、血量等）──
+    socket.on('battle:update', ({ roomId, battleState }) => {
+        const engine = activeBattles.get(roomId)
+        const room = roomManager.getRoom(roomId)
+
+        if (!engine || !room || room.status !== 'in_battle') {
+            console.warn(`[battle] Ignoring battle:update for room ${roomId}: engine=${!!engine}, room=${!!room}, status=${room?.status}`)
+            return
+        }
+
+        // 单调递进检查：只接受更新的 round
+        if (engine.battleState && battleState.round !== undefined) {
+            if (battleState.round <= (engine.battleState.round || 0)) {
+                console.warn(`[battle] Rejecting stale battle:update for room ${roomId}: current=${engine.battleState.round}, received=${battleState.round}`)
+                return
+            }
+        }
+
+        // 更新内存中的战斗状态
+        if (engine.battleState) {
+            engine.battleState = { ...engine.battleState, ...battleState, lastUpdated: new Date().toISOString() }
+        } else {
+            engine.battleState = { ...battleState, lastUpdated: new Date().toISOString() }
+        }
+
+        // 持久化到 DB
+        stmts.saveBattleState.run(roomId, engine.battleState)
+            .catch(err => console.error('[battle] Failed to save battle state update:', err))
+
+        console.log(`[battle] Battle state updated: room=${roomId}, round=${battleState.round}`)
+    })
+
     // ── 客户端上报战斗结果 ────────────────────────────
     socket.on('battle:complete', ({ roomId, result, dungeonId }) => {
         console.log(`[battle] battle:complete from ${socket.user.username}: room=${roomId}, result=${result}`)
 
-        // 以第一个收到的结果为准
-        if (battleCompleteReceived.get(roomId)) {
-            console.log(`[battle] Duplicate battle:complete for room ${roomId}, ignoring`)
-            return
-        }
-        battleCompleteReceived.set(roomId, true)
-
         const engine = activeBattles.get(roomId)
-        if (!engine) {
-            console.warn(`[battle] No engine found for room ${roomId}`)
+        const room = roomManager.getRoom(roomId)
+
+        if (!engine || !room) {
+            console.warn(`[battle] No engine or room found for ${roomId}`)
             return
         }
 
-        engine.result = result
-        engine.finished = true
+        // 获取或初始化房间完成状态追踪
+        const completionTracking = battleCompletionStatus.get(roomId) || new Map()
+        battleCompletionStatus.set(roomId, completionTracking)
 
-        // 胜利时计算并下发个人掉落
-        if (result === 'victory') {
-            const lootResults = engine.generatePersonalLoot()
-            for (const [userId, items] of Object.entries(lootResults)) {
-                io.to(roomId).emit('battle:loot', {
-                    userId: Number(userId),
-                    items,
-                })
-            }
-            console.log(`[battle] Loot distributed for room ${roomId}`)
-        }
+        // 记录当前玩家的完成状态
+        completionTracking.set(socket.user.id, result)
+        console.log(`[battle] Player ${socket.user.username} completed: ${result}, ${completionTracking.size}/${room.players.filter(p => !p.isAI).length} humans completed`)
 
-        // 通知所有客户端服务端结算完成
-        io.to(roomId).emit('battle:finished_server', {
-            result,
-            roomId,
-        })
+        // 检查是否所有真人玩家都已完成
+        const humanPlayers = room.players.filter(p => !p.isAI && p.userId > 0)
+        const completedPlayers = humanPlayers.filter(p => completionTracking.has(p.userId))
+        const allCompleted = completedPlayers.length === humanPlayers.length
 
-        // 清理战斗状态
-        activeBattles.delete(roomId)
-        battleCompleteReceived.delete(roomId)
+        if (allCompleted) {
+            console.log(`[battle] All human players completed for room ${roomId}, finalizing battle`)
 
-        // 战斗结束后销毁房间，释放所有玩家的 userRoomMap 映射
-        const room = roomManager.getRoom(roomId)
-        if (room) {
-            // 让所有 socket 离开 Socket.IO room
-            const socketsInRoom = io.sockets.adapter.rooms.get(roomId)
-            if (socketsInRoom) {
-                for (const sid of socketsInRoom) {
-                    const s = io.sockets.sockets.get(sid)
-                    if (s) s.leave(roomId)
+            // 胜利时计算并下发个人掉落（只发给完成战斗的玩家）
+            if (result === 'victory') {
+                const lootResults = engine.generatePersonalLoot()
+
+                // 持久化奖励到数据库
+                stmts.saveRoomRewards.run(roomId, lootResults)
+                    .catch(err => console.error('[battle] Failed to persist rewards:', err))
+
+                // 发送奖励给完成的玩家
+                for (const [userId, items] of Object.entries(lootResults)) {
+                    const playerResult = completionTracking.get(Number(userId))
+                    if (playerResult === 'victory') {
+                        io.to(roomId).emit('battle:reward', {
+                            userId: Number(userId),
+                            items,
+                        })
+                    }
                 }
+                console.log(`[battle] Loot distributed and persisted for room ${roomId}`)
             }
-            roomManager._destroyRoom(roomId)
-            io.emit('room:list_updated', roomManager.getRoomList())
-            console.log(`[battle] Room ${roomId} destroyed after battle`)
+
+            // 通知所有客户端服务端结算完成
+            io.to(roomId).emit('battle:finished_server', {
+                result,
+                roomId,
+            })
+
+            // 清理战斗状态
+            activeBattles.delete(roomId)
+            battleCompletionStatus.delete(roomId)
+
+            // 战斗结束后销毁房间，释放所有玩家的 userRoomMap 映射
+            if (room) {
+                // 让所有 socket 离开 Socket.IO room
+                const socketsInRoom = io.sockets.adapter.rooms.get(roomId)
+                if (socketsInRoom) {
+                    for (const sid of socketsInRoom) {
+                        const s = io.sockets.sockets.get(sid)
+                        if (s) s.leave(roomId)
+                    }
+                }
+                roomManager._destroyRoom(roomId)
+                io.emit('room:list_updated', roomManager.getRoomList())
+                console.log(`[battle] Room ${roomId} destroyed after battle`)
+            }
         }
+        // 注意：只在所有真人玩家都完成后才发送 battle:finished_server
+        // 部分玩家完成时不发送，避免UI状态不一致（战斗还在进行但已显示结算）
     })
 
     // ── Disconnect ──────────────────────────────────────
@@ -397,7 +493,8 @@ async function recoverInBattleRooms() {
             speed: 50,
         }))
         activeBattles.set(row.id, engine)
-        battleCompleteReceived.set(row.id, false)
+        // 初始化恢复房间的完成状态追踪
+        battleCompletionStatus.set(row.id, new Map())
 
         recovered++
         console.log(`[battle] Recovered in_battle room ${row.id} (dungeon=${row.dungeon_id})`)

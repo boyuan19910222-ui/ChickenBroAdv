@@ -319,6 +319,45 @@ export function buildStatementAdapters() {
                 return { changes }
             },
         },
+
+        getBattleState: {
+            async get(roomId) {
+                const row = await Room.findOne({
+                    where: { id: roomId },
+                    attributes: ['battle_state'],
+                })
+                return row?.battle_state || null
+            },
+        },
+
+        saveRoomRewards: {
+            async run(roomId, rewards) {
+                const [changes] = await Room.update(
+                    { rewards },
+                    { where: { id: roomId } }
+                )
+                return { changes }
+            },
+        },
+
+        getRoomRewards: {
+            async get(roomId) {
+                const row = await Room.findOne({
+                    where: { id: roomId },
+                    attributes: ['rewards'],
+                })
+                return row?.rewards || null
+            },
+        },
+
+        findRoomById: {
+            async get(roomId) {
+                const row = await Room.findOne({
+                    where: { id: roomId },
+                })
+                return toPlain(row)
+            },
+        },
     }
 }
 

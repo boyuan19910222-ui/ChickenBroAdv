@@ -276,7 +276,7 @@ export const useMultiplayerStore = defineStore('multiplayer', {
             })
 
             // 掉落
-            this.socket.on('battle:loot', ({ userId, items }) => {
+            this.socket.on('battle:reward', ({ userId, items }) => {
                 if (this.user && userId === this.user.id) {
                     this.lootItems = items || []
                 }

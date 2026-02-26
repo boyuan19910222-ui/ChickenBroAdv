@@ -1,5 +1,23 @@
 export const changelogs = [
   {
+    version: "v1.5.0",
+    date: "2026-02-26",
+    title: "多人联机状态同步与奖励系统",
+    content: [
+      "新增：战斗结束后的奖励分发系统，副本胜利后为在线真人玩家生成战利品",
+      "新增：奖励持久化至 rooms.rewards 列，断线重连后仍可领取",
+      "新增：战斗状态同步机制（battle_state JSON），包含怪物位置、血量、回合数",
+      "新增：单调递进验证，只接受更新的战斗状态更新，防止状态回退",
+      "新增：断线重连时从数据库恢复战斗状态，确保所有玩家看到相同怪物",
+      "新增：战斗结束后奖励持久化，通过 battle:reward 事件推送给玩家",
+      "新增：支持重连到已结束的战斗，获取战斗结果和奖励",
+      "新增：WebSocket 事件文档（battle:init, battle:update, battle:finished, battle:restore, battle:reward）",
+      "修复：副本结束后玩家无法获得奖励的问题",
+      "修复：断线重连后怪物状态不一致的问题",
+      "优化：RoomManager 新增 updateBattleState, updateRoomRewards, getBattleState, getRoomRewards 方法"
+    ]
+  },
+  {
     version: "v1.4.0",
     date: "2026-02-26",
     title: "多人服务端持久化 & 断线重连增强",
