@@ -18,6 +18,11 @@ PlayerSchema SHALL export a `createDefaultPlayer(name, classId)` function that r
 - **WHEN** `createDefaultPlayer('Rogue', 'rogue')` is called
 - **THEN** the returned object includes `comboPoints: { current: 0, max: 5 }` and `resource.type` is `'energy'`
 
+#### Scenario: Create a rogue with valid starter skills
+- **WHEN** a rogue character is created through the current character creation flow
+- **THEN** starter skills include `shadowStrike`
+- **AND** starter mapping does not depend on `sinisterStrike`
+
 #### Scenario: Create a mage with mana
 - **WHEN** `createDefaultPlayer('Mage', 'mage')` is called
 - **THEN** the returned object includes `resource.type` as `'mana'` and mana-based resource values
