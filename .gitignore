@@ -30,6 +30,9 @@ pids/
 server/*.db
 server/*.db-shm
 server/*.db-wal
+data/*.db
+data/*.db-shm
+data/*.db-wal
 
 # Test
 test-results/
