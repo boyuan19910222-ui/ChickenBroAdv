@@ -69,6 +69,12 @@ export class DungeonCombatSystem {
         // 战斗循环中止控制
         this._aborted = false;               // 中止标志，true 时所有延迟回调不再执行
         this._pendingTimers = [];             // 保存所有 setTimeout handle，用于集中清除
+
+        // 服务端波次注入（多人模式）
+        this._injectedWaves = null;           // Wave[] | null
+
+        // 服务端波次注入（多人模式新）
+        this._injectedWaves = null;           // Wave[] | null —波次注入时跳过客户端随机生成
     }
 
     /**
@@ -219,7 +225,9 @@ export class DungeonCombatSystem {
      * @param {Array} party - 已构建好的战斗队伍数组（来自 PartyFormationSystem.createDungeonPartyFromSnapshots）
      */
     async startDungeonMultiplayer(dungeonId, party, options = {}) {
-        const startEncounterIndex = options.startEncounterIndex || 0;
+        const { startEncounterIndex = 0, waves } = options;
+        // 波次注入：服务端生成的全量波次快照，优先于客户端 seed 随机生成
+        this._injectedWaves = Array.isArray(waves) && waves.length > 0 ? waves : null;
         let dungeonData = DungeonData?.[dungeonId];
         
         // 如果 DungeonData 中没有，尝试通过 DungeonRegistry 动态加载
@@ -287,7 +295,11 @@ export class DungeonCombatSystem {
             return;
         }
 
-        const encounterInfo = encounters[this.encounterIndex];
+        // 服务端波次注入：优先使用快照中的遭遇战信息
+        const injectedWave = this._injectedWaves?.[this.encounterIndex] ?? null;
+        const encounterInfo = injectedWave
+            ? { id: injectedWave.waveId, type: injectedWave.type, name: injectedWave.name }
+            : encounters[this.encounterIndex];
         console.log('[DungeonCombat] 遭遇战信息:', encounterInfo);
         
         const encounterData = this.currentDungeon.getEncounter(encounterInfo.id);
@@ -299,7 +311,19 @@ export class DungeonCombatSystem {
         this.showEncounterTransition(encounterInfo, () => {
             console.log('[DungeonCombat] 过渡完成，开始遭遇战, type=', encounterInfo.type);
             if (encounterInfo.type === 'boss') {
+                // Boss 仍需本地 phase/enrage 配置
                 this.startBossEncounter(encounterData, encounterInfo.id);
+            } else if (injectedWave) {
+                // 注入波次：跳过 createTrashInstance，直接使用服务端生成的敌人列表
+                const injectedEnemies = injectedWave.enemies.map(e => ({
+                    id: e.id, name: e.name, type: e.type, slot: e.slot, emoji: e.emoji,
+                    currentHp: e.stats.hp, maxHp: e.stats.hp,
+                    damage: e.stats.damage, armor: e.stats.armor,
+                    speed: e.speed, skills: e.skills || [],
+                    loot: { exp: 0 },
+                }));
+                console.log('[DungeonCombat] 波次注入：使用服务端敌人数据', injectedEnemies.length, '只');
+                this.initializeCombat(injectedEnemies, false);
             } else {
                 this.startTrashEncounter(encounterData);
             }

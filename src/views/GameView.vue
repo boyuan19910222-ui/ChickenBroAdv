@@ -39,6 +39,26 @@
       @enter-dungeon="onEnterDungeon"
     />
 
+    <!-- 断线重连待领奖励弹窗（battle:restore 场景） -->
+    <div
+      v-if="showPendingReward"
+      class="loot-restore-overlay"
+      @click.self="closePendingReward"
+    >
+      <div class="loot-restore-dialog pixel-panel">
+        <div class="loot-restore-title">🎁 待领通关奖励</div>
+        <div class="loot-restore-desc">断线前获得的副本通关奖励：</div>
+        <div class="loot-restore-items">
+          <div v-for="(item, idx) in mpStore.lootItems" :key="idx" class="loot-item-row">
+            <span class="loot-item-icon">{{ item.emoji || '📦' }}</span>
+            <span class="loot-item-name">{{ item.name }}</span>
+          </div>
+          <div v-if="mpStore.lootItems.length === 0" class="loot-empty">暂无掉落</div>
+        </div>
+        <button class="pixel-btn loot-confirm-btn" @click="closePendingReward">确认领取</button>
+      </div>
+    </div>
+
     <!-- 集合石模态框 -->
     <LobbyModal
       v-if="showLobbyModal"
@@ -48,9 +68,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore.js'
+import { useMultiplayerStore } from '@/stores/multiplayerStore.js'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts.js'
 
 import GameHeader from '@/components/layout/GameHeader.vue'
@@ -67,11 +88,31 @@ import LobbyModal from '@/components/modals/LobbyModal.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
+const mpStore = useMultiplayerStore()
 
 const showAreaSelection = ref(false)
 const showTalents = ref(false)
 const showDungeonSelect = ref(false)
 const showLobbyModal = ref(false)
+
+// 断线重连待领奖励（battle:restore 场景：DungeonCombatView 未挂载时）
+const showPendingReward = computed(() =>
+  mpStore.lootItems.length > 0 &&
+  mpStore.battleState !== 'in_progress' &&
+  gameStore.currentScene !== 'dungeon'
+)
+
+function closePendingReward() {
+  if (mpStore.lootItems.length > 0) {
+    const slot = gameStore.engine?.currentSlot || 1
+    const saved = gameStore.saveManager?.applyLootToSave(mpStore.lootItems, slot)
+    if (saved) {
+      console.log(`[GameView] 待领奖励已写入存档槽位 ${slot}，共 ${mpStore.lootItems.length} 件`)
+    }
+  }
+  mpStore.lootItems = []
+  mpStore.battleState = 'idle'
+}
 
 // 注册键盘快捷键
 useKeyboardShortcuts({
@@ -174,5 +215,59 @@ function debugLevelUp() {
   .game-container {
     grid-template-columns: 1fr;
   }
+}
+
+/* 断线重连待领奖励弹窗 */
+.loot-restore-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loot-restore-dialog {
+  min-width: 280px;
+  max-width: 400px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.loot-restore-title {
+  font-family: var(--pixel-font);
+  font-size: var(--fs-md);
+  color: var(--primary-gold);
+}
+
+.loot-restore-desc {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.loot-restore-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.loot-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-surface);
+  border-radius: 4px;
+}
+
+.loot-empty {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
 }
 </style>

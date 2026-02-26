@@ -11,6 +11,7 @@ import { authenticateToken, authenticateSocket, globalErrorHandler } from './mid
 import { RoomManager } from './rooms.js'
 import { ChatManager, setupChat } from './chat.js'
 import { BattleEngine } from './BattleEngine.js'
+import { generateWaves } from './WaveGenerator.js'
 import { DungeonRegistry } from '../src/data/dungeons/DungeonRegistry.js'
 import { SeededRandom } from '../src/core/SeededRandom.js'
 import { PartyFormationSystem } from '../src/systems/PartyFormationSystem.js'
@@ -93,15 +94,25 @@ async function launchBattle(room) {
         armor: m.stats?.armor || Math.floor((m.level || 1) * 1.5),
         speed: 50,
     }))
+    // 生成服务端全量波次快照（用于消除客户端 RNG 偏移）
+    let waves
+    try {
+        waves = await generateWaves(room.dungeonId)
+    } catch (err) {
+        console.error(`[battle] generateWaves failed for room ${room.id}:`, err)
+        io.to(room.id).emit('battle:error', { message: '波次数据生成失败: ' + err.message })
+        return
+    }
+
     // 保存 battleState 引用，用于重连时重发 battle:init
-    engine.battleState = { seed, snapshots: partySnapshots }
+    engine.battleState = { seed, snapshots: partySnapshots, waves, currentWaveIndex: 0 }
     activeBattles.set(room.id, engine)
     // 初始化房间完成状态追踪（按玩家）
     const completionTracking = new Map()
     battleCompletionStatus.set(room.id, completionTracking)
 
     // 持久化战斗状态，用于断线重连时恢复 battle:init
-    stmts.saveBattleState.run(room.id, { seed, snapshots: partySnapshots })
+    stmts.saveBattleState.run(room.id, { seed, snapshots: partySnapshots, waves, currentWaveIndex: 0 })
         .catch(err => console.error('[battle] Failed to save battle state:', err))
 
     // 广播 battle:init（客户端收到后启动本地 DungeonCombatSystem）
@@ -110,9 +121,10 @@ async function launchBattle(room) {
         seed,
         snapshots: partySnapshots,
         roomId: room.id,
+        waves,
     })
 
-    console.log(`[battle] Launched battle:init for room ${room.id}, dungeon=${room.dungeonId}, seed=${seed}, party=${partySnapshots.length}`)
+    console.log(`[battle] Launched battle:init for room ${room.id}, dungeon=${room.dungeonId}, seed=${seed}, party=${partySnapshots.length}, waves=${waves.length}`)
 }
 
 /**
@@ -162,17 +174,26 @@ io.on('connection', (socket) => {
                             rewards: dbRoom.rewards[socket.user.id] || [],
                         })
                         console.log(`[socket] Sent battle result and rewards to ${socket.user.username} for finished room ${existingRoomId}`)
-                    } else {
-                        // 真正的过期，清理残留映射
-                        roomManager.userRoomMap.delete(socket.user.id)
-                        console.log(`[socket] Cleared stale userRoomMap for ${socket.user.username} (roomId=${existingRoomId})`)
                     }
+                    // 无论是否有奖励，清理残留的 userRoomMap（房间已关闭，不再重复下发）
+                    roomManager.userRoomMap.delete(socket.user.id)
+                    console.log(`[socket] Cleared userRoomMap for ${socket.user.username} after restore (roomId=${existingRoomId})`)
                 }).catch(err => console.error('[socket] Failed to query room for reconnection:', err))
             }
         } else {
             // 重连时恢复玩家在线状态
             const player = room.players.find(p => p.userId === socket.user.id)
             if (player) player.isOnline = true
+
+            // 同步恢复 BattleEngine party 单元的在线标志（用于 generatePersonalLoot 包含该玩家）
+            const reconnectEngine = activeBattles.get(existingRoomId)
+            if (reconnectEngine) {
+                const unit = reconnectEngine.party.find(u => u.ownerId === socket.user.id)
+                if (unit) {
+                    unit.isOnline = true
+                    console.log(`[socket] Restored engine party unit isOnline for ${socket.user.username}`)
+                }
+            }
 
             socket.join(existingRoomId)
             console.log(`[socket] ${socket.user.username} rejoined room ${existingRoomId}`)
@@ -192,6 +213,7 @@ io.on('connection', (socket) => {
                         roomId:           existingRoomId,
                         rejoin:           true,
                         currentWaveIndex: engine.battleState.currentWaveIndex || 0,
+                        waves:            engine.battleState.waves,
                     })
                     console.log(`[socket] Resent battle:init to ${socket.user.username} for room ${existingRoomId}`)
                 }
@@ -360,10 +382,11 @@ io.on('connection', (socket) => {
         completionTracking.set(socket.user.id, result)
         console.log(`[battle] Player ${socket.user.username} completed: ${result}, ${completionTracking.size}/${room.players.filter(p => !p.isAI).length} humans completed`)
 
-        // 检查是否所有真人玩家都已完成
+        // 检查是否所有在线真人玩家都已完成（离线玩家不阻塞结算）
         const humanPlayers = room.players.filter(p => !p.isAI && p.userId > 0)
-        const completedPlayers = humanPlayers.filter(p => completionTracking.has(p.userId))
-        const allCompleted = completedPlayers.length === humanPlayers.length
+        const onlineHumanPlayers = humanPlayers.filter(p => p.isOnline !== false)
+        const completedPlayers = onlineHumanPlayers.filter(p => completionTracking.has(p.userId))
+        const allCompleted = onlineHumanPlayers.length > 0 && completedPlayers.length === onlineHumanPlayers.length
 
         if (allCompleted) {
             console.log(`[battle] All human players completed for room ${roomId}, finalizing battle`)

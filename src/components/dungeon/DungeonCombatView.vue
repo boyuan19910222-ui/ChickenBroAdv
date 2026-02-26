@@ -894,6 +894,17 @@ function sendMpChat() {
  * 关闭掉落弹窗并返回大厅
  */
 function closeLootModal() {
+  // 将服务端下发的奖励写入本地存档背包
+  if (mpLootItems.value.length > 0) {
+    const slot = gameStore.engine?.currentSlot || 1
+    const saved = gameStore.saveManager?.applyLootToSave(mpLootItems.value, slot)
+    if (saved) {
+      console.log(`[DungeonCombatView] 奖励已写入存档槽位 ${slot}，共 ${mpLootItems.value.length} 件`)
+    } else {
+      console.warn('[DungeonCombatView] 奖励写入存档失败，saveManager 不可用')
+    }
+  }
+  mpLootItems.value = []
   showLootModal.value = false
   // 清理多人战斗状态并通知服务端离开房间
   multiplayerStore.battleState = 'idle'

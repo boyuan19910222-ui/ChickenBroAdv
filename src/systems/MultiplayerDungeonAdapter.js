@@ -35,7 +35,7 @@ export class MultiplayerDungeonAdapter {
      *   { dungeonId, seed, snapshots, roomId }
      */
     async start(initData) {
-        const { dungeonId, seed, snapshots, roomId } = initData;
+        const { dungeonId, seed, snapshots, roomId, waves } = initData;
         const multiplayerStore = useMultiplayerStore();
         const gameStore = useGameStore();
         const authStore = useAuthStore();
@@ -147,7 +147,9 @@ export class MultiplayerDungeonAdapter {
         if (startEncounterIndex > 0) {
             console.log(`[MultiplayerDungeonAdapter] 断线重连，从第 ${startEncounterIndex} 波继续`)
         }
-        await this.dungeonCombatSystem.startDungeonMultiplayer(dungeonId, party, { startEncounterIndex })
+        // 若服务端提供了波次快照，优先使用；否则降级到客户端 seed 随机逻辑
+        const wavesOption = Array.isArray(waves) && waves.length > 0 ? waves : undefined
+        await this.dungeonCombatSystem.startDungeonMultiplayer(dungeonId, party, { startEncounterIndex, waves: wavesOption })
     }
 
     _resolveCurrentUserId(multiplayerStore, authStore) {

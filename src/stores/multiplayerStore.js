@@ -282,6 +282,15 @@ export const useMultiplayerStore = defineStore('multiplayer', {
                 }
             })
 
+            // 断线重连后的战斗奖励恢复（房间已销毁，服务端从 DB 取回）
+            this.socket.on('battle:restore', ({ rewards }) => {
+                if (rewards && rewards.length > 0) {
+                    console.log('[mpStore] battle:restore: 收到待领奖励', rewards.length, '件')
+                    this.lootItems = rewards
+                    this.battleState = 'finished'
+                }
+            })
+
             // 战斗错误
             this.socket.on('battle:error', ({ message }) => {
                 this.error = message
