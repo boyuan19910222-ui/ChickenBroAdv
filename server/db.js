@@ -1,169 +1,252 @@
-import Database from 'better-sqlite3'
-import config from './config.js'
-import { mkdirSync } from 'fs'
-import { dirname } from 'path'
+/**
+ * db.js — Database access layer (MySQL + Sequelize ORM)
+ *
+ * Public API is intentionally kept identical to the old better-sqlite3 version
+ * so that callers only need to add `await` — no structural changes required.
+ *
+ * Statement adapter shape:
+ *   stmts.<name>.get(...args)  → Promise<row | undefined>
+ *   stmts.<name>.run(...args)  → Promise<{ changes: number, lastInsertRowid: number }>
+ *   stmts.<name>.all(...args)  → Promise<row[]>
+ */
+
+import { Op } from 'sequelize'
+import { sequelize, User, Character, BattleRecord } from './models/index.js'
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Convert a Sequelize model instance (or null) to a plain object or undefined. */
+function toPlain(instance) {
+    if (instance == null) return undefined
+    return instance.get({ plain: true })
+}
+
+/** Map an array of instances to plain objects. */
+function toPlainArray(instances) {
+    return instances.map(toPlain)
+}
 
 /**
- * Initialize the SQLite database.
- * Accepts an optional dbPath; defaults to config.dbPath.
- * Pass ':memory:' for in-memory databases (useful for tests).
+ * Build a statement-adapter object whose keys match the old prepareStatements()
+ * return value exactly. Each adapter exposes .get() / .run() / .all() as async
+ * methods so callers can await them directly.
  */
-export function createDatabase(dbPath) {
-    const resolvedPath = dbPath ?? config.dbPath
-
-    // Ensure parent directory exists for file-based databases
-    if (resolvedPath !== ':memory:') {
-        mkdirSync(dirname(resolvedPath), { recursive: true })
-    }
-
-    const db = new Database(resolvedPath)
-
-    // Enable WAL mode for better concurrency (no-op for :memory:)
-    db.pragma('journal_mode = WAL')
-    db.pragma('foreign_keys = ON')
-
-    // Create tables
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            nickname TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_login DATETIME,
-            oauth_provider TEXT,
-            oauth_id TEXT,
-            auto_login INTEGER DEFAULT 0
-        );
-
-        CREATE TABLE IF NOT EXISTS characters (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            class TEXT NOT NULL,
-            level INTEGER DEFAULT 1,
-            game_state TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_played_at DATETIME,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS battle_records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            dungeon_id TEXT NOT NULL,
-            result TEXT NOT NULL,
-            duration INTEGER,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        -- Indexes for characters table
-        CREATE INDEX IF NOT EXISTS idx_characters_user ON characters(user_id);
-        CREATE INDEX IF NOT EXISTS idx_characters_last_played ON characters(user_id, last_played_at DESC);
-
-        -- Trigger: limit 5 characters per user
-        CREATE TRIGGER IF NOT EXISTS limit_characters_per_user
-        BEFORE INSERT ON characters
-        WHEN (SELECT COUNT(*) FROM characters WHERE user_id = NEW.user_id) >= 5
-        BEGIN
-            SELECT RAISE(ABORT, 'Character limit reached (max 5)');
-        END;
-    `)
-
-    // Migration: Add auto_login column if it doesn't exist
-    try {
-        db.exec('ALTER TABLE users ADD COLUMN auto_login INTEGER DEFAULT 0')
-    } catch (e) {
-        // Column already exists, ignore error
-        if (!e.message.includes('duplicate column name')) {
-            throw e
-        }
-    }
-
-    return db
-}
-
-// Prepared statement factories — call with a db instance
-export function prepareStatements(db) {
+export function buildStatementAdapters() {
     return {
-        // User statements
-        insertUser: db.prepare(
-            'INSERT INTO users (username, password_hash, nickname) VALUES (?, ?, ?)'
-        ),
-        findUserByUsername: db.prepare(
-            'SELECT * FROM users WHERE username = ?'
-        ),
-        findUserById: db.prepare(
-            'SELECT id, username, nickname, created_at, last_login, auto_login FROM users WHERE id = ?'
-        ),
-        updateLastLogin: db.prepare(
-            'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?'
-        ),
-        updateAutoLogin: db.prepare(
-            'UPDATE users SET auto_login = ? WHERE id = ?'
-        ),
+        // ── User adapters ─────────────────────────────────────────────────────
 
-        // Character statements
-        insertCharacter: db.prepare(
-            'INSERT INTO characters (user_id, name, class, level, game_state, last_played_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
-        ),
-        findCharactersByUserId: db.prepare(
-            'SELECT id, user_id, name, class, level, created_at, updated_at, last_played_at FROM characters WHERE user_id = ? ORDER BY last_played_at DESC'
-        ),
-        findCharacterById: db.prepare(
-            'SELECT * FROM characters WHERE id = ?'
-        ),
-        findCharacterByIdAndUserId: db.prepare(
-            'SELECT * FROM characters WHERE id = ? AND user_id = ?'
-        ),
-        updateCharacter: db.prepare(
-            'UPDATE characters SET name = ?, class = ?, level = ?, game_state = ?, updated_at = CURRENT_TIMESTAMP, last_played_at = CURRENT_TIMESTAMP WHERE id = ?'
-        ),
-        updateCharacterGameState: db.prepare(
-            'UPDATE characters SET game_state = ?, level = ?, updated_at = CURRENT_TIMESTAMP, last_played_at = CURRENT_TIMESTAMP WHERE id = ?'
-        ),
-        deleteCharacter: db.prepare(
-            'DELETE FROM characters WHERE id = ? AND user_id = ?'
-        ),
-        countCharactersByUserId: db.prepare(
-            'SELECT COUNT(*) as count FROM characters WHERE user_id = ?'
-        ),
+        insertUser: {
+            async run(username, passwordHash, nickname) {
+                const row = await User.create({ username, password_hash: passwordHash, nickname })
+                return { changes: 1, lastInsertRowid: row.id }
+            },
+        },
 
-        // Battle record statements
-        insertBattleRecord: db.prepare(
-            'INSERT INTO battle_records (user_id, dungeon_id, result, duration) VALUES (?, ?, ?, ?)'
-        ),
-        getBattleRecords: db.prepare(
-            'SELECT * FROM battle_records WHERE user_id = ? ORDER BY created_at DESC'
-        ),
+        findUserByUsername: {
+            async get(username) {
+                const row = await User.findOne({ where: { username } })
+                return toPlain(row)
+            },
+        },
+
+        findUserById: {
+            async get(id) {
+                const row = await User.findOne({
+                    where:      { id },
+                    attributes: ['id', 'username', 'nickname', 'created_at', 'last_login', 'auto_login'],
+                })
+                return toPlain(row)
+            },
+        },
+
+        updateLastLogin: {
+            async run(id) {
+                const [changes] = await User.update(
+                    { last_login: new Date() },
+                    { where: { id } }
+                )
+                return { changes }
+            },
+        },
+
+        updateAutoLogin: {
+            async run(value, id) {
+                const [changes] = await User.update(
+                    { auto_login: value },
+                    { where: { id } }
+                )
+                return { changes }
+            },
+        },
+
+        // ── Character adapters ────────────────────────────────────────────────
+
+        insertCharacter: {
+            async run(userId, name, className, level, gameState) {
+                // Enforce the 5-character-per-user limit at the application layer
+                const count = await Character.count({ where: { user_id: userId } })
+                if (count >= 5) {
+                    throw new Error('Character limit reached (max 5)')
+                }
+                const row = await Character.create({
+                    user_id:       userId,
+                    name,
+                    class:         className,
+                    level,
+                    game_state:    gameState,
+                    last_played_at: new Date(),
+                })
+                return { changes: 1, lastInsertRowid: row.id }
+            },
+        },
+
+        findCharactersByUserId: {
+            async all(userId) {
+                const rows = await Character.findAll({
+                    where:      { user_id: userId },
+                    attributes: ['id', 'user_id', 'name', 'class', 'level',
+                                 'created_at', 'updated_at', 'last_played_at'],
+                    order:      [['last_played_at', 'DESC']],
+                })
+                return toPlainArray(rows)
+            },
+        },
+
+        findCharacterById: {
+            async get(id) {
+                const row = await Character.findOne({ where: { id } })
+                return toPlain(row)
+            },
+        },
+
+        findCharacterByIdAndUserId: {
+            async get(id, userId) {
+                const row = await Character.findOne({
+                    where: { id, user_id: userId },
+                })
+                return toPlain(row)
+            },
+        },
+
+        updateCharacter: {
+            async run(name, className, level, gameState, id) {
+                const [changes] = await Character.update(
+                    {
+                        name,
+                        class:          className,
+                        level,
+                        game_state:     gameState,
+                        updated_at:    new Date(),
+                        last_played_at: new Date(),
+                    },
+                    { where: { id } }
+                )
+                return { changes }
+            },
+        },
+
+        updateCharacterGameState: {
+            async run(gameState, level, id) {
+                const [changes] = await Character.update(
+                    {
+                        game_state:     gameState,
+                        level,
+                        updated_at:    new Date(),
+                        last_played_at: new Date(),
+                    },
+                    { where: { id } }
+                )
+                return { changes }
+            },
+        },
+
+        deleteCharacter: {
+            async run(id, userId) {
+                const changes = await Character.destroy({
+                    where: { id, user_id: userId },
+                })
+                return { changes }
+            },
+        },
+
+        countCharactersByUserId: {
+            async get(userId) {
+                const count = await Character.count({ where: { user_id: userId } })
+                return { count }
+            },
+        },
+
+        // ── BattleRecord adapters ─────────────────────────────────────────────
+
+        insertBattleRecord: {
+            async run(userId, dungeonId, result, duration) {
+                const row = await BattleRecord.create({
+                    user_id:    userId,
+                    dungeon_id: dungeonId,
+                    result,
+                    duration,
+                })
+                return { changes: 1, lastInsertRowid: row.id }
+            },
+        },
+
+        getBattleRecords: {
+            async all(userId) {
+                const rows = await BattleRecord.findAll({
+                    where: { user_id: userId },
+                    order: [['created_at', 'DESC']],
+                })
+                return toPlainArray(rows)
+            },
+        },
     }
 }
 
-// Default singleton for production use
-let _db = null
+// ── Singleton ─────────────────────────────────────────────────────────────────
+
 let _stmts = null
-
-export function getDb() {
-    if (!_db) {
-        _db = createDatabase()
-        _stmts = prepareStatements(_db)
-    }
-    return _db
-}
 
 export function getStatements() {
     if (!_stmts) {
-        getDb()
+        _stmts = buildStatementAdapters()
     }
     return _stmts
 }
 
-export function closeDb() {
-    if (_db) {
-        _db.close()
-        _db = null
-        _stmts = null
+/**
+ * Returns the raw Sequelize instance (replaces old getDb()).
+ * Prefer getStatements() for data access; use this only for transactions.
+ */
+export function getDb() {
+    return sequelize
+}
+
+export async function closeDb() {
+    _stmts = null
+    await sequelize.close()
+}
+
+/**
+ * Health check — runs a lightweight query and reports connectivity.
+ * Returns { ok: true } or { ok: false, error: string }.
+ */
+export async function checkDbHealth() {
+    try {
+        await sequelize.authenticate()
+        return { ok: true }
+    } catch (err) {
+        return { ok: false, error: err.message }
     }
+}
+
+// ── Legacy exports kept for test-layer migration path ─────────────────────────
+// TODO (task 7.2): remove once tests are updated to use buildStatementAdapters()
+
+export function createDatabase() {
+    // No-op in MySQL mode; returns the sequelize instance for compatibility.
+    return sequelize
+}
+
+export function prepareStatements() {
+    return buildStatementAdapters()
 }

@@ -18,7 +18,7 @@ export function createAuthRouter(stmts) {
     const router = Router()
 
     // ── POST /api/auth/register ─────────────────────────────
-    router.post('/register', (req, res) => {
+    router.post('/register', async (req, res) => {
         try {
             const { username, password, nickname, auto_login } = req.body || {}
 
@@ -47,7 +47,7 @@ export function createAuthRouter(stmts) {
             }
 
             // Check duplicate username
-            const existing = stmts.findUserByUsername.get(username)
+            const existing = await stmts.findUserByUsername.get(username)
             if (existing) {
                 return res.status(409).json({
                     error: 'USERNAME_EXISTS',
@@ -57,7 +57,7 @@ export function createAuthRouter(stmts) {
 
             // Hash password and insert
             const passwordHash = bcrypt.hashSync(password, config.bcryptRounds)
-            const result = stmts.insertUser.run(username, passwordHash, nickname)
+            const result = await stmts.insertUser.run(username, passwordHash, nickname)
             const userId = result.lastInsertRowid
 
             // Generate JWT with appropriate expiration
@@ -79,7 +79,7 @@ export function createAuthRouter(stmts) {
     })
 
     // ── POST /api/auth/login ────────────────────────────────
-    router.post('/login', (req, res) => {
+    router.post('/login', async (req, res) => {
         try {
             const { username, password, auto_login } = req.body || {}
 
@@ -90,7 +90,7 @@ export function createAuthRouter(stmts) {
                 })
             }
 
-            const user = stmts.findUserByUsername.get(username)
+            const user = await stmts.findUserByUsername.get(username)
             if (!user) {
                 return res.status(401).json({
                     error: 'USER_NOT_FOUND',
@@ -107,7 +107,7 @@ export function createAuthRouter(stmts) {
             }
 
             // Update last_login
-            stmts.updateLastLogin.run(user.id)
+            await stmts.updateLastLogin.run(user.id)
 
             // Choose token expiration based on auto_login
             const expiresIn = auto_login ? config.jwtExpiresInAutoLogin : config.jwtExpiresIn

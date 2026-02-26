@@ -7,7 +7,7 @@ import config from './config.js'
 import { getDb, getStatements } from './db.js'
 import { createAuthRouter } from './auth.js'
 import { createCharactersRouter } from './characters.js'
-import { authenticateToken, authenticateSocket } from './middleware.js'
+import { authenticateToken, authenticateSocket, globalErrorHandler } from './middleware.js'
 import { RoomManager } from './rooms.js'
 import { ChatManager, setupChat } from './chat.js'
 import { BattleEngine } from './BattleEngine.js'
@@ -34,8 +34,8 @@ app.use('/api/auth', createAuthRouter(stmts))
 app.use('/api/characters', createCharactersRouter(stmts))
 
 // Example protected route
-app.get('/api/me', authenticateToken, (req, res) => {
-    const user = stmts.findUserById.get(req.user.id)
+app.get('/api/me', authenticateToken, async (req, res) => {
+    const user = await stmts.findUserById.get(req.user.id)
     if (!user) {
         return res.status(404).json({ error: 'USER_NOT_FOUND', message: '用户不存在' })
     }
@@ -279,7 +279,8 @@ io.on('connection', (socket) => {
 
 // Setup chat
 setupChat(io, roomManager, chatManager)
-
+// Global error handler (must be after all routes)
+app.use(globalErrorHandler)
 // ── Start ───────────────────────────────────────────────────
 httpServer.listen(config.port, '0.0.0.0', () => {
     console.log(`[server] ChickenBro server running on port ${config.port}`)

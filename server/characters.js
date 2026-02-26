@@ -193,10 +193,10 @@ export function createCharactersRouter(stmts) {
 
     // ── GET /api/characters ─────────────────────────────
     // 获取角色列表
-    router.get('/', (req, res) => {
+    router.get('/', async (req, res) => {
         try {
             const userId = req.user.id
-            const characters = stmts.findCharactersByUserId.all(userId)
+            const characters = await stmts.findCharactersByUserId.all(userId)
 
             // 返回简化的角色信息（不包含完整 game_state）
             const result = characters.map(char => ({
@@ -217,13 +217,13 @@ export function createCharactersRouter(stmts) {
 
     // ── GET /api/characters/:id ─────────────────────────────
     // 获取单个角色
-    router.get('/:id', (req, res) => {
+    router.get('/:id', async (req, res) => {
         try {
             const { id } = req.params
             const userId = req.user.id
 
             // 验证角色归属
-            const character = stmts.findCharacterByIdAndUserId.get(id, userId)
+            const character = await stmts.findCharacterByIdAndUserId.get(id, userId)
             if (!character) {
                 return res.status(404).json({ error: 'NOT_FOUND', message: '角色不存在' })
             }
@@ -259,7 +259,7 @@ export function createCharactersRouter(stmts) {
 
     // ── POST /api/characters ─────────────────────────────
     // 创建角色
-    router.post('/', (req, res) => {
+    router.post('/', async (req, res) => {
         try {
             const userId = req.user.id
             const { name, class: characterClass } = req.body || {}
@@ -281,7 +281,7 @@ export function createCharactersRouter(stmts) {
             }
 
             // 检查角色数量限制
-            const countResult = stmts.countCharactersByUserId.get(userId)
+            const countResult = await stmts.countCharactersByUserId.get(userId)
             if (countResult.count >= MAX_CHARACTERS_PER_USER) {
                 return res.status(400).json({
                     error: 'CHARACTER_LIMIT_REACHED',
@@ -293,7 +293,7 @@ export function createCharactersRouter(stmts) {
             const gameState = createInitialGameState(name, characterClass)
 
             // 插入数据库
-            const result = stmts.insertCharacter.run(
+            const result = await stmts.insertCharacter.run(
                 userId,
                 name,
                 characterClass,
@@ -332,14 +332,14 @@ export function createCharactersRouter(stmts) {
 
     // ── PUT /api/characters/:id ─────────────────────────────
     // 更新角色（存档同步）
-    router.put('/:id', (req, res) => {
+    router.put('/:id', async (req, res) => {
         try {
             const { id } = req.params
             const userId = req.user.id
             const { game_state, level } = req.body || {}
 
             // 验证角色归属
-            const character = stmts.findCharacterByIdAndUserId.get(id, userId)
+            const character = await stmts.findCharacterByIdAndUserId.get(id, userId)
             if (!character) {
                 return res.status(404).json({ error: 'NOT_FOUND', message: '角色不存在' })
             }
@@ -364,7 +364,7 @@ export function createCharactersRouter(stmts) {
             const newLevel = level || (game_state.player?.level) || character.level
 
             // 更新数据库
-            stmts.updateCharacterGameState.run(gameStateStr, newLevel, id)
+            await stmts.updateCharacterGameState.run(gameStateStr, newLevel, id)
 
             return res.json({
                 success: true,
@@ -383,13 +383,13 @@ export function createCharactersRouter(stmts) {
 
     // ── DELETE /api/characters/:id ─────────────────────────────
     // 删除角色
-    router.delete('/:id', (req, res) => {
+    router.delete('/:id', async (req, res) => {
         try {
             const { id } = req.params
             const userId = req.user.id
 
             // 删除角色（SQL 已包含 user_id 验证）
-            const result = stmts.deleteCharacter.run(id, userId)
+            const result = await stmts.deleteCharacter.run(id, userId)
 
             if (result.changes === 0) {
                 return res.status(404).json({ error: 'NOT_FOUND', message: '角色不存在' })

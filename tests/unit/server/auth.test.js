@@ -1,15 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import jwt from 'jsonwebtoken'
-import { createDatabase, prepareStatements } from '../../../server/db.js'
+import { buildStatementAdapters } from '../../../server/db.js'
+import { sequelize } from '../../../server/models/sequelize.js'
 import { createAuthRouter } from '../../../server/auth.js'
 import { authenticateToken } from '../../../server/middleware.js'
 import config from '../../../server/config.js'
 
-// Helper: create a test app with in-memory DB
+// Helper: create a test app backed by the shared test MySQL database.
+// All adapter instances share the same Sequelize connection, so data created
+// in one request is visible to the next within the same test.
 function createTestApp() {
-    const db = createDatabase(':memory:')
-    const stmts = prepareStatements(db)
+    const stmts = buildStatementAdapters()
     const app = express()
     app.use(express.json())
     app.use('/api/auth', createAuthRouter(stmts))
@@ -19,7 +21,7 @@ function createTestApp() {
         res.json({ user: req.user })
     })
 
-    return { app, db, stmts }
+    return { app, stmts }
 }
 
 // Supertest-like helper using native fetch on the Express app
@@ -54,17 +56,27 @@ function request(app) {
     return api
 }
 
-describe('Auth - Registration', () => {
-    let app, db
+// Shared setup/teardown: sync DB schema once before all tests, close after all
+beforeAll(async () => {
+    await sequelize.sync({ force: true })
+})
 
-    beforeEach(() => {
+afterAll(async () => {
+    await sequelize.close()
+})
+
+describe('Auth - Registration', () => {
+    let app
+
+    beforeEach(async () => {
+        // Truncate users table to isolate each test
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 0')
+        await sequelize.query('TRUNCATE TABLE users')
+        await sequelize.query('TRUNCATE TABLE characters')
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 1')
+
         const ctx = createTestApp()
         app = ctx.app
-        db = ctx.db
-    })
-
-    afterEach(() => {
-        db.close()
     })
 
     it('should register a new user successfully', async () => {
@@ -88,11 +100,10 @@ describe('Auth - Registration', () => {
             nickname: '玩家1',
         })
 
-        // Need a fresh app pointing to same DB for second request
+        // Second request — same stmts/DB state visible because we share one Sequelize instance
         const app2 = express()
         app2.use(express.json())
-        const stmts2 = prepareStatements(db)
-        app2.use('/api/auth', createAuthRouter(stmts2))
+        app2.use('/api/auth', createAuthRouter(buildStatementAdapters()))
 
         const res = await request(app2).post('/api/auth/register', {
             username: 'testuser',
@@ -161,12 +172,15 @@ describe('Auth - Registration', () => {
 })
 
 describe('Auth - Login', () => {
-    let app, db
+    let app
 
     beforeEach(async () => {
-        const ctx = createTestApp()
-        app = ctx.app
-        db = ctx.db
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 0')
+        await sequelize.query('TRUNCATE TABLE users')
+        await sequelize.query('TRUNCATE TABLE characters')
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 1')
+
+        app = createTestApp().app
 
         // Register a user first
         await request(app).post('/api/auth/register', {
@@ -175,19 +189,8 @@ describe('Auth - Login', () => {
             nickname: '登录玩家',
         })
 
-        // Recreate app on same DB so prepared statements are fresh
-        const stmts2 = prepareStatements(db)
-        const newApp = express()
-        newApp.use(express.json())
-        newApp.use('/api/auth', createAuthRouter(stmts2))
-        newApp.get('/api/protected', authenticateToken, (req, res) => {
-            res.json({ user: req.user })
-        })
-        app = newApp
-    })
-
-    afterEach(() => {
-        db.close()
+        // Fresh app for subsequent requests (same shared DB)
+        app = createTestApp().app
     })
 
     it('should login successfully and return JWT', async () => {
@@ -228,16 +231,15 @@ describe('Auth - Login', () => {
 })
 
 describe('Auth - JWT Token verification', () => {
-    let app, db
+    let app
 
-    beforeEach(() => {
-        const ctx = createTestApp()
-        app = ctx.app
-        db = ctx.db
-    })
+    beforeEach(async () => {
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 0')
+        await sequelize.query('TRUNCATE TABLE users')
+        await sequelize.query('TRUNCATE TABLE characters')
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 1')
 
-    afterEach(() => {
-        db.close()
+        app = createTestApp().app
     })
 
     it('should allow access to protected route with valid token', async () => {
@@ -250,14 +252,8 @@ describe('Auth - JWT Token verification', () => {
 
         const token = regRes.body.token
 
-        // Recreate app on same DB
-        const stmts2 = prepareStatements(db)
-        const newApp = express()
-        newApp.use(express.json())
-        newApp.use('/api/auth', createAuthRouter(stmts2))
-        newApp.get('/api/protected', authenticateToken, (req, res) => {
-            res.json({ user: req.user })
-        })
+        // Use a fresh app (same shared DB)
+        const newApp = createTestApp().app
 
         const res = await request(newApp).get('/api/protected', {
             Authorization: `Bearer ${token}`,
@@ -283,3 +279,4 @@ describe('Auth - JWT Token verification', () => {
         expect(res.body.error).toBe('TOKEN_INVALID')
     })
 })
+

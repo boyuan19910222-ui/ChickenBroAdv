@@ -4,6 +4,24 @@
 
 Set-Location $PSScriptRoot
 
+# ── 环境选择 ─────────────────────────────────────────────────
+Write-Host ""
+Write-Host "请选择启动环境:"
+Write-Host "  [1] 开发环境 (development) - 默认"
+Write-Host "  [2] 生产环境 (production)"
+Write-Host ""
+$choice = Read-Host "输入选项 (直接回车选 1)"
+
+if ($choice -eq '2') {
+    $NODE_ENV = 'production'
+    Write-Host "已选择: 生产环境" -ForegroundColor Yellow
+} else {
+    $NODE_ENV = 'development'
+    Write-Host "已选择: 开发环境" -ForegroundColor Cyan
+}
+Write-Host ""
+# ─────────────────────────────────────────────────────────────
+
 Write-Host "正在启动 ChickenBro 服务..."
 
 # 检查并杀死已存在的进程
@@ -18,6 +36,7 @@ Start-Sleep -Seconds 1
 
 # 启动后端
 Write-Host "启动后端服务 (端口 3001)..."
+$env:NODE_ENV = $NODE_ENV
 $serverProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c node server/index.js" -PassThru -NoNewWindow
 Write-Host "后端 PID: $($serverProcess.Id)"
 
@@ -41,6 +60,7 @@ Write-Host "=========================================="
 Write-Host ""
 Write-Host "  前端地址: http://localhost:5173/"
 Write-Host "  后端端口: 3001"
+Write-Host "  当前环境: $NODE_ENV"
 Write-Host ""
 Write-Host "  按 Ctrl+C 停止所有服务"
 Write-Host "=========================================="
