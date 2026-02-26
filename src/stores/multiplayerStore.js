@@ -125,6 +125,11 @@ export const useMultiplayerStore = defineStore('multiplayer', {
                 if (!this.socket) return resolve({ error: 'NOT_CONNECTED' })
                 this.socket.emit('room:create', { dungeonId, dungeonName, playerSnapshot }, (res) => {
                     if (res.error) {
+                        // 服务端检测到用户已在活跃房间中，自动视为重新加入
+                        if (res.rejoin && res.room) {
+                            this.currentRoom = res.room
+                            return resolve({ room: res.room, rejoined: true })
+                        }
                         this.error = res.message
                         return resolve(res)
                     }
@@ -139,6 +144,11 @@ export const useMultiplayerStore = defineStore('multiplayer', {
                 if (!this.socket) return resolve({ error: 'NOT_CONNECTED' })
                 this.socket.emit('room:join', { roomId, playerSnapshot }, (res) => {
                     if (res.error) {
+                        // 服务端检测到用户已在活跃房间中，自动视为重新加入
+                        if (res.rejoin && res.room) {
+                            this.currentRoom = res.room
+                            return resolve({ room: res.room, rejoined: true })
+                        }
                         this.error = res.message
                         return resolve(res)
                     }
@@ -218,8 +228,16 @@ export const useMultiplayerStore = defineStore('multiplayer', {
 
             // 房间状态更新
             this.socket.on('room:updated', ({ room }) => {
-                if (this.currentRoom && room.id === this.currentRoom.id) {
+                // 接受来自服务端的房间更新：
+                // - 已经有 currentRoom 且 ID 匹配（正常情况）
+                // - currentRoom 为 null（页面刷新 / 断线重连后服务端主动推送）
+                if (!this.currentRoom || this.currentRoom.id === room.id) {
                     this.currentRoom = room
+                    // 若房间已进入战斗状态但 battleState 尚未更新，补充设置
+                    // 确保 WaitingRoomView 中的 watch 能正确触发跳转
+                    if (room.status === 'in_battle' && this.battleState === 'idle') {
+                        this.battleState = 'in_progress'
+                    }
                 }
             })
 

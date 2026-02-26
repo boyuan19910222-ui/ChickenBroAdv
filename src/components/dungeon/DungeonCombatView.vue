@@ -8,6 +8,7 @@
       <div class="dungeon-info-center">
         <span class="dungeon-icon">🏰</span>
         <span class="dungeon-name-text">{{ dungeonName }}</span>
+        <span v-if="waveLabel" class="wave-progress-badge">{{ waveLabel }}</span>
       </div>
       <div class="dungeon-info-right">
         <button class="exit-dungeon-btn" @click="confirmExitDungeon">
@@ -321,6 +322,13 @@ let multiplayerAdapter = null
 
 const dungeonName = ref('')
 const encounterName = ref('洞穴入口守卫')
+// 波次进度：{ current: number, total: number }
+const waveProgress = ref({ current: 0, total: 0 })
+const waveLabel = computed(() => {
+  const { current, total } = waveProgress.value
+  if (!total) return ''
+  return `第 ${current + 1} / ${total} 波`
+})
 const currentRound = ref(1)
 const showExitConfirm = ref(false)
 const turnOrder = ref([])
@@ -691,6 +699,8 @@ onMounted(() => {
 
       restHasNextEncounter.value = data.hasNextEncounter
       restEncounterProgress.value = `${data.encounterIndex}/${data.totalEncounters}`
+      // 同步顶部波次进度
+      waveProgress.value = { current: data.encounterIndex, total: data.totalEncounters }
       isResting.value = false
       isFullyRested.value = false
       updateRestPartyStatus()
@@ -845,11 +855,18 @@ async function startDungeonMultiplayer() {
       }
     }
     
+    // 同步其他成员上报的波次（multiplayer:waveUpdated 由 MultiplayerDungeonAdapter 转发）
+    const onWaveUpdated = ({ waveIndex, totalWaves }) => {
+      waveProgress.value = { current: waveIndex, total: totalWaves }
+    }
+
     eventBus.on('multiplayer:lootReceived', onLootReceived)
     eventBus.on('multiplayer:battleFinished', onBattleFinished)
+    eventBus.on('multiplayer:waveUpdated', onWaveUpdated)
     unsubscribers.push(
       () => eventBus.off('multiplayer:lootReceived', onLootReceived),
       () => eventBus.off('multiplayer:battleFinished', onBattleFinished),
+      () => eventBus.off('multiplayer:waveUpdated', onWaveUpdated),
     )
   } catch (e) {
     console.error('多人副本启动失败:', e)
@@ -890,6 +907,14 @@ function updateBattlefield(state) {
   if (!state) return
   if (state.encounterName) encounterName.value = state.encounterName
   if (state.currentRound) currentRound.value = state.currentRound
+
+  // 同步波次进度
+  if (state.totalEncounters > 0) {
+    waveProgress.value = {
+      current: state.encounterIndex ?? waveProgress.value.current,
+      total:   state.totalEncounters,
+    }
+  }
 
   // 战场更新时清除目标高亮（回合已结束）
   highlightTargetId.value = null
@@ -1499,7 +1524,7 @@ function exitDungeon() {
 
 function updateRestPartyStatus() {
   const dungeonSystem = gameStore.dungeonCombatSystem
-  if (!dungeonSystem) return
+  if (!dungeonSystem?.partyState?.members) return
   restPartyStatus.value = dungeonSystem.partyState.members.map(m => {
     const hasResource = m.resource && m.resource.type !== 'rage' && m.resource.max > 0
     return {
@@ -1520,7 +1545,7 @@ function updateRestPartyStatus() {
 
 function checkIfFullyRested() {
   const dungeonSystem = gameStore.dungeonCombatSystem
-  if (!dungeonSystem) return
+  if (!dungeonSystem?.partyState?.members) return
   const allFull = dungeonSystem.partyState.members.every(m => {
     if (m.currentHp < m.maxHp) return false
     if (m.resource && m.resource.type !== 'rage' && m.resource.current < m.resource.max) return false
@@ -1651,6 +1676,20 @@ function autoNextAfterRest() {
   font-size: var(--fs-xs);
   color: var(--secondary-gold);
   white-space: nowrap;
+}
+
+/* 当前波次徽章 */
+.wave-progress-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: var(--fs-xs);
+  color: #fff;
+  background: rgba(255, 180, 0, 0.18);
+  border: 1px solid rgba(255, 180, 0, 0.45);
+  border-radius: 10px;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
 }
 
 .exit-dungeon-btn {

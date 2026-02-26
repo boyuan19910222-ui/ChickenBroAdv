@@ -11,7 +11,7 @@
  */
 
 import { Op } from 'sequelize'
-import { sequelize, User, Character, BattleRecord } from './models/index.js'
+import { sequelize, User, Character, BattleRecord, ChatMessage, ClassConfig, Room } from './models/index.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -197,6 +197,126 @@ export function buildStatementAdapters() {
                     order: [['created_at', 'DESC']],
                 })
                 return toPlainArray(rows)
+            },
+        },
+
+        // ── ChatMessage adapters ──────────────────────────────────────────────
+
+        insertChatMessage: {
+            async run(userId, nickname, content, type, roomId, timestamp) {
+                const row = await ChatMessage.create({
+                    user_id:   userId,
+                    nickname,
+                    content,
+                    type,
+                    room_id:   roomId || null,
+                    timestamp: timestamp || Date.now(),
+                })
+                return { changes: 1, lastInsertRowid: row.id }
+            },
+        },
+
+        getLobbyHistory: {
+            async all(limit = 50) {
+                const rows = await ChatMessage.findAll({
+                    where: { type: 'lobby' },
+                    order: [['created_at', 'DESC']],
+                    limit,
+                })
+                // Return in ascending order (oldest first)
+                return toPlainArray(rows).reverse()
+            },
+        },
+
+        // ── ClassConfig adapters ──────────────────────────────────────────────
+
+        findAllClassConfigs: {
+            async all() {
+                const rows = await ClassConfig.findAll({ order: [['class_id', 'ASC']] })
+                return toPlainArray(rows)
+            },
+        },
+
+        upsertClassConfig: {
+            async run(classId, data) {
+                const [row, created] = await ClassConfig.upsert({
+                    class_id:         classId,
+                    name:             data.name,
+                    base_stats:       data.baseStats,
+                    growth_per_level: data.growthPerLevel,
+                    base_skills:      data.baseSkills,
+                    resource_type:    data.resourceType,
+                    resource_max:     data.resourceMax,
+                    updated_at:       new Date(),
+                })
+                return { changes: 1, lastInsertRowid: row.id, created }
+            },
+        },
+
+        // ── Room adapters ─────────────────────────────────────────────────────
+
+        insertRoom: {
+            async run(id, hostId, dungeonId, dungeonName, maxPlayers, players) {
+                await Room.create({
+                    id,
+                    host_id:      hostId,
+                    dungeon_id:   dungeonId,
+                    dungeon_name: dungeonName,
+                    status:       'waiting',
+                    max_players:  maxPlayers,
+                    players:      players || [],
+                })
+                return { changes: 1 }
+            },
+        },
+
+        updateRoomPlayers: {
+            async run(roomId, players) {
+                const [changes] = await Room.update(
+                    { players },
+                    { where: { id: roomId } }
+                )
+                return { changes }
+            },
+        },
+
+        updateRoomStatus: {
+            async run(roomId, status, extra = {}) {
+                const [changes] = await Room.update(
+                    { status, ...extra },
+                    { where: { id: roomId } }
+                )
+                return { changes }
+            },
+        },
+
+        findWaitingRooms: {
+            async all() {
+                const rows = await Room.findAll({
+                    where: { status: 'waiting' },
+                    order: [['created_at', 'ASC']],
+                })
+                return toPlainArray(rows)
+            },
+        },
+
+        findInBattleRooms: {
+            async all() {
+                const rows = await Room.findAll({
+                    where: { status: 'in_battle' },
+                    order: [['battle_started_at', 'ASC']],
+                })
+                return toPlainArray(rows)
+            },
+        },
+
+        saveBattleState: {
+            async run(roomId, battleState) {
+                const [changes] = await Room.update(
+                    { battle_state: battleState },
+                    { where: { id: roomId } }
+                )
+                return { changes }
             },
         },
     }

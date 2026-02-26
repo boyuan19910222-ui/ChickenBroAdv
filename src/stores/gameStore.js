@@ -45,6 +45,9 @@ export const useGameStore = defineStore('game', {
 
         // 当前选中的角色ID（服务器端）
         currentCharacterId: null,
+
+        // 多人模式专用 DungeonCombatSystem（由 MultiplayerDungeonAdapter 挂载）
+        _multiplayerDungeonSystem: null,
     }),
 
     getters: {
@@ -55,7 +58,8 @@ export const useGameStore = defineStore('game', {
             return this.engine?.getSystem('combat')
         },
         dungeonCombatSystem() {
-            return this.engine?.getSystem('dungeonCombat')
+            // 多人模式下优先使用 MultiplayerDungeonAdapter 挂载的系统
+            return this._multiplayerDungeonSystem ?? this.engine?.getSystem('dungeonCombat')
         },
         equipmentSystem() {
             return this.engine?.getSystem('equipment')

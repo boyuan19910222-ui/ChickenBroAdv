@@ -22,13 +22,25 @@ export class RoomManager {
         this._setTimeout = options.timerFn || setTimeout
         this._clearTimeout = options.clearFn || clearTimeout
         this._onRoomStart = options.onRoomStart || null
+
+        /** @type {object|null} Statement adapters for DB persistence (optional) */
+        this._stmts = options.stmts || null
     }
 
     // ── Create ──────────────────────────────────────────────
     createRoom(hostUser, dungeonId, dungeonName, playerSnapshot) {
         // Prevent user from being in multiple rooms
         if (this.userRoomMap.has(hostUser.id)) {
-            return { error: 'ALREADY_IN_ROOM', message: '你已经在一个房间中' }
+            const existingRoomId = this.userRoomMap.get(hostUser.id)
+            const existingRoom = this.rooms.get(existingRoomId)
+
+            // 房间已关闭或不存在于内存中（持久化后重启等情况），清理映射后允许创建
+            if (!existingRoom || existingRoom.status === 'closed') {
+                this.userRoomMap.delete(hostUser.id)
+            } else {
+                // 房间仍然活跃，通知客户端重新连接该房间
+                return { error: 'ALREADY_IN_ROOM', message: '你已经在一个房间中', rejoin: true, room: existingRoom }
+            }
         }
 
         const roomId = uuidv4()
@@ -54,6 +66,16 @@ export class RoomManager {
 
         this.rooms.set(roomId, room)
         this.userRoomMap.set(hostUser.id, roomId)
+
+        // Write-behind: persist room metadata to DB
+        if (this._stmts) {
+            const playerSnapshots = room.players.map(p => ({
+                userId: p.userId, nickname: p.nickname, classId: p.classId, level: p.level
+            }))
+            this._stmts.insertRoom.run(
+                roomId, hostUser.id, dungeonId, room.dungeonName, room.maxPlayers, playerSnapshots
+            ).catch(err => console.error('[rooms] Failed to persist room creation:', err))
+        }
 
         return { room }
     }
@@ -103,7 +125,15 @@ export class RoomManager {
         // 检查用户是否已在其他房间中
         const existingRoomId = this.userRoomMap.get(user.id)
         if (existingRoomId && existingRoomId !== roomId) {
-            return { error: 'ALREADY_IN_ROOM', message: '你已经在一个房间中' }
+            const existingRoom = this.rooms.get(existingRoomId)
+
+            // 原房间已关闭或不存在，清理映射后允许加入新房间
+            if (!existingRoom || existingRoom.status === 'closed') {
+                this.userRoomMap.delete(user.id)
+            } else {
+                // 原房间仍活跃，通知客户端重新连接
+                return { error: 'ALREADY_IN_ROOM', message: '你已经在一个房间中', rejoin: true, room: existingRoom }
+            }
         }
 
         // 如果用户已在此房间中（断线重连），更新状态而不是重新添加
@@ -130,6 +160,15 @@ export class RoomManager {
         const player = this._makePlayer(user, false, playerSnapshot)
         room.players.push(player)
         this.userRoomMap.set(user.id, roomId)
+
+        // Write-behind: update players snapshot in DB
+        if (this._stmts) {
+            const playerSnapshots = room.players.map(p => ({
+                userId: p.userId, nickname: p.nickname, classId: p.classId, level: p.level
+            }))
+            this._stmts.updateRoomPlayers.run(roomId, playerSnapshots)
+                .catch(err => console.error('[rooms] Failed to update room players:', err))
+        }
 
         // If room is now full, start battle immediately
         if (room.players.length >= room.maxPlayers) {
@@ -167,6 +206,15 @@ export class RoomManager {
             const newHost = room.players[0]
             room.hostId = newHost.userId
             newHost.isHost = true
+        }
+
+        // Write-behind: update players snapshot in DB
+        if (this._stmts) {
+            const playerSnapshots = room.players.map(p => ({
+                userId: p.userId, nickname: p.nickname, classId: p.classId, level: p.level
+            }))
+            this._stmts.updateRoomPlayers.run(roomId, playerSnapshots)
+                .catch(err => console.error('[rooms] Failed to update room players on leave:', err))
         }
 
         return { room }
@@ -311,6 +359,13 @@ export class RoomManager {
         room.status = 'in_battle'
         room.battleStartedAt = new Date()
 
+        // Write-behind: update room status to in_battle
+        if (this._stmts) {
+            this._stmts.updateRoomStatus.run(
+                room.id, 'in_battle', { battle_started_at: room.battleStartedAt }
+            ).catch(err => console.error('[rooms] Failed to update room status to in_battle:', err))
+        }
+
         // Fill remaining slots with AI players
         let aiIndex = 1
         while (room.players.length < room.maxPlayers) {
@@ -352,7 +407,80 @@ export class RoomManager {
             for (const p of room.players) {
                 this.userRoomMap.delete(p.userId)
             }
+
+            // Write-behind: mark room as closed
+            if (this._stmts) {
+                this._stmts.updateRoomStatus.run(
+                    roomId, 'closed', { closed_at: new Date() }
+                ).catch(err => console.error('[rooms] Failed to update room status to closed:', err))
+            }
+
             this.rooms.delete(roomId)
         }
+    }
+
+    /**
+     * 服务启动时从数据库恢复 waiting 状态的房间。
+     * 未超过 maxRoomWaitTime 的房间恢复到内存并重启剩余 waitTimer；
+     * 超时的房间直接标记为 closed。
+     * @param {object} stmts
+     * @param {number} maxWaitMs - 最大等待时间（毫秒），默认与 config 一致
+     */
+    async recoverRooms(stmts, maxWaitMs = 2 * 60 * 1000) {
+        let rows
+        try {
+            rows = await stmts.findWaitingRooms.all()
+        } catch (err) {
+            console.error('[rooms] Failed to query waiting rooms for recovery:', err)
+            return
+        }
+
+        const now = Date.now()
+        let recovered = 0
+        let expired = 0
+
+        for (const row of rows) {
+            const createdAt = new Date(row.created_at).getTime()
+            const elapsed = now - createdAt
+            const remaining = maxWaitMs - elapsed
+
+            if (remaining <= 0) {
+                // 已超期，标记为 closed
+                stmts.updateRoomStatus.run(row.id, 'closed', { closed_at: new Date() })
+                    .catch(err => console.error('[rooms] Failed to close expired room:', err))
+                expired++
+                continue
+            }
+
+            // 恢复到内存
+            const room = {
+                id:              row.id,
+                hostId:          row.host_id,
+                dungeonId:       row.dungeon_id,
+                dungeonName:     row.dungeon_name,
+                status:          'waiting',
+                maxPlayers:      row.max_players,
+                players:         Array.isArray(row.players) ? row.players : JSON.parse(row.players || '[]'),
+                createdAt:       new Date(row.created_at),
+                waitTimer:       null,
+                battleStartedAt: null,
+            }
+
+            // 重启剩余时间的 waitTimer
+            room.waitTimer = this._setTimeout(() => {
+                this._onTimeout(row.id)
+            }, remaining)
+
+            this.rooms.set(row.id, room)
+            // 恢复 userRoomMap
+            for (const p of room.players) {
+                if (p.userId > 0) {
+                    this.userRoomMap.set(p.userId, row.id)
+                }
+            }
+            recovered++
+        }
+
+        console.log(`[rooms] Recovery complete: ${recovered} restored, ${expired} expired.`)
     }
 }

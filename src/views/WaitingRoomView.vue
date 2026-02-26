@@ -151,7 +151,7 @@ async function ensureConnection() {
     return true
 }
 
-async function rejoinRoom() {
+async function rejoinRoom(force = false) {
     const roomUuid = route.params.roomId
     if (!roomUuid) {
         error.value = '无效的房间ID'
@@ -159,8 +159,8 @@ async function rejoinRoom() {
         return
     }
     
-    // 如果已经有房间信息且 ID 匹配，不需要重新加入
-    if (mpStore.currentRoom?.id === roomUuid) {
+    // 如果已经有房间信息且 ID 匹配，非强制模式下不需要重新加入
+    if (!force && mpStore.currentRoom?.id === roomUuid) {
         return
     }
     
@@ -257,6 +257,13 @@ onMounted(async () => {
         router.push('/game')
         return
     }
+
+    // 如果房间已经在战斗中（断线重连后 room:updated 已设置），直接跳转副本
+    if (mpStore.currentRoom.status === 'in_battle' || mpStore.battleState === 'in_progress') {
+        gameStore.changeScene('dungeon')
+        router.push('/game')
+        return
+    }
     
     // 启动倒计时
     startCountdown()
@@ -280,13 +287,23 @@ watch(
     },
 )
 
-// 监听房间状态变化
+// 监听房间状态变化（room:updated 把 waiting 房间推进到 in_battle 时）
 watch(
     () => mpStore.currentRoom?.status,
     (status) => {
-        if (status === 'in_battle' && mpStore.battleState === 'in_progress') {
+        if (status === 'in_battle') {
             gameStore.changeScene('dungeon')
             router.push('/game')
+        }
+    },
+)
+
+// 断线重连后重新加入 waiting 房间（Socket.IO auto-reconnect 场景）
+watch(
+    () => mpStore.connected,
+    async (connected, wasConnected) => {
+        if (connected && wasConnected === false && mpStore.currentRoom?.status === 'waiting') {
+            await rejoinRoom(true)
         }
     },
 )

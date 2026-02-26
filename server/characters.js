@@ -1,7 +1,56 @@
 import { Router } from 'express'
 import { authenticateToken } from './middleware.js'
 
-// 职业基础配置（与 GameData.js 保持一致）
+// ── 运行时职业配置缓存（由 loadClassConfigs 初始化） ───────────────────────────────
+let _classConfigs = null  // classId → config
+
+/**
+ * 返回指定职业的配置。必须在 loadClassConfigs() 之后调用。
+ * @param {string} classId
+ * @returns {object}
+ */
+export function getClassConfig(classId) {
+    if (!_classConfigs) {
+        throw new Error('Class configs not loaded. Call loadClassConfigs(stmts) first.')
+    }
+    return _classConfigs[classId]
+}
+
+/**
+ * 从数据库加载全部职业配置到模块缓存。
+ * 服务启动时在 app.listen 前调用一次。
+ * @param {object} stmts
+ */
+export async function loadClassConfigs(stmts) {
+    const rows = await stmts.findAllClassConfigs.all()
+    if (!rows || rows.length === 0) {
+        throw new Error('[characters] class_configs table is empty. Run seed migration first.')
+    }
+    const map = {}
+    for (const row of rows) {
+        map[row.class_id] = {
+            name:            row.name,
+            baseStats:       row.base_stats,
+            growthPerLevel:  row.growth_per_level,
+            baseSkills:      row.base_skills,
+            resourceType:    row.resource_type,
+            resourceMax:     row.resource_max,
+        }
+    }
+    _classConfigs = map
+    console.log(`[characters] Loaded ${rows.length} class configs from DB.`)
+}
+
+/**
+ * 线上重新加载职业配置，无需重启进程（防展用）。
+ * @param {object} stmts
+ */
+export async function reloadClassConfigs(stmts) {
+    await loadClassConfigs(stmts)
+    console.log('[characters] Class configs reloaded.')
+}
+
+// Legacy placeholder — will be superseded by DB data at runtime
 const CLASS_CONFIG = {
     warrior: {
         name: '战士',
@@ -90,8 +139,8 @@ function generateExpTable() {
 }
 const EXP_TABLE = generateExpTable()
 
-// 有效职业列表
-const VALID_CLASSES = Object.keys(CLASS_CONFIG)
+// 有效职业列表（保留静态列表作为备用，运行时会从 _classConfigs 动态读取）
+const VALID_CLASSES = ['warrior', 'paladin', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'warlock', 'druid']
 
 // 最大角色数量
 const MAX_CHARACTERS_PER_USER = 5
@@ -106,7 +155,13 @@ const CHARACTER_NAME_RE = /^[\u4e00-\u9fa5a-zA-Z0-9_]{2,12}$/
  * @returns {object} 初始游戏状态
  */
 function createInitialGameState(name, characterClass) {
-    const config = CLASS_CONFIG[characterClass]
+    // Use DB-loaded config if available, fall back to hardcoded for tests/startup
+    let config
+    try {
+        config = getClassConfig(characterClass)
+    } catch {
+        config = CLASS_CONFIG[characterClass]
+    }
     if (!config) {
         throw new Error(`Invalid character class: ${characterClass}`)
     }

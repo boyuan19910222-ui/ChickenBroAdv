@@ -49,7 +49,7 @@
 
 #### Scenario: 首次迁移建表成功
 - **WHEN** 对空数据库执行 `sequelize db:migrate`
-- **THEN** `users`、`characters`、`battle_records` 三张表及索引均被创建
+- **THEN** `users`、`characters`、`battle_records`、`chat_messages`、`class_configs`、`rooms` 六张表及索引均被创建
 
 #### Scenario: 重复执行迁移幂等
 - **WHEN** `sequelize db:migrate` 在已迁移数据库上重复执行

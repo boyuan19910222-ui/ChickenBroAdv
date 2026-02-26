@@ -114,8 +114,37 @@ export class MultiplayerDungeonAdapter {
         // 9. 将 DungeonCombatSystem 挂载到 gameStore 以便 DungeonCombatView 访问
         gameStore.$patch({ _multiplayerDungeonSystem: this.dungeonCombatSystem });
 
-        // 10. 启动多人模式副本
-        await this.dungeonCombatSystem.startDungeonMultiplayer(dungeonId, party);
+        // 10. 监听波次完成事件，上报服务端（用于断线重连时恢复进度）
+        const onEncounterVictory = (data) => {
+            if (multiplayerStore.socket?.connected) {
+                multiplayerStore.socket.emit('battle:wave_progress', {
+                    roomId,
+                    waveIndex:   data.encounterIndex,
+                    totalWaves:  data.totalEncounters,
+                })
+                console.log(`[MultiplayerDungeonAdapter] 上报波次进度: ${data.encounterIndex}/${data.totalEncounters}`)
+            }
+        }
+        gameStore.eventBus.on('dungeon:encounterVictory', onEncounterVictory)
+        this._cleanupFns.push(() => gameStore.eventBus.off('dungeon:encounterVictory', onEncounterVictory))
+
+        // 11a. 监听服务端广播的 battle:wave_updated，同步其他成员的波次进度到 eventBus
+        if (multiplayerStore.socket) {
+            const onWaveUpdated = ({ waveIndex, totalWaves }) => {
+                gameStore.eventBus.emit('multiplayer:waveUpdated', { waveIndex, totalWaves })
+            }
+            multiplayerStore.socket.on('battle:wave_updated', onWaveUpdated)
+            this._cleanupFns.push(() => multiplayerStore.socket?.off('battle:wave_updated', onWaveUpdated))
+        }
+
+        // 11. 启动多人模式副本（rejoin 时从已记录的波次索引继续）
+        const startEncounterIndex = (initData.rejoin && initData.currentWaveIndex > 0)
+            ? initData.currentWaveIndex
+            : 0
+        if (startEncounterIndex > 0) {
+            console.log(`[MultiplayerDungeonAdapter] 断线重连，从第 ${startEncounterIndex} 波继续`)
+        }
+        await this.dungeonCombatSystem.startDungeonMultiplayer(dungeonId, party, { startEncounterIndex })
     }
 
     /**

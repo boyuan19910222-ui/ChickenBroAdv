@@ -1,5 +1,24 @@
 export const changelogs = [
   {
+    version: "v1.4.0",
+    date: "2026-02-26",
+    title: "多人服务端持久化 & 断线重连增强",
+    content: [
+      "新增：聊天消息持久化至 chat_messages 表，服务重启后大厅历史可恢复（write-behind 异步写库）",
+      "新增：职业配置入库（class_configs 表），服务启动时从 DB 加载，支持热重载无需重部署",
+      "新增：房间状态持久化（rooms 表），服务重启后自动恢复 waiting 状态房间并重启倒计时",
+      "新增：战斗状态持久化（battle_state 列），断线重连时服务端重发 battle:init 恢复战斗",
+      "新增：服务重启后自动恢复 in_battle 房间到内存，支持玩家断线重连续战",
+      "新增：副本波次进度追踪，断线重连后从正确波次继续，不再从头开始",
+      "新增：副本战斗界面顶部显示「第 X / N 波」波次进度徽章",
+      "修复：服务重启后创建房间误报「你已经在一个房间中」的问题（stale userRoomMap 清理）",
+      "修复：多人模式 dungeon:encounterVictory 事件触发 partyState 空指针崩溃",
+      "修复：gameStore.dungeonCombatSystem getter 多人模式下返回错误系统实例",
+      "修复：等待房间断线重连后玩家显示离线、开始战斗按钮消失的问题",
+      "优化：服务启动改为异步序列（loadClassConfigs → loadHistory → recoverRooms → recoverInBattleRooms）"
+    ]
+  },
+  {
     version: "v1.3.0",
     date: "2026-02-26",
     commit: "5ea4c8e",
