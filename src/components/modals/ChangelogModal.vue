@@ -12,6 +12,7 @@
               <span class="log-version">{{ log.version }}</span>
               <span class="log-date">{{ log.date }}</span>
             </div>
+            <div v-if="log.commit" class="log-commit">提交: {{ log.commit }}</div>
             <div class="log-title">{{ log.title }}</div>
             <ul class="log-content">
               <li v-for="(item, index) in log.content" :key="index">{{ item }}</li>
@@ -144,6 +145,12 @@ const logs = changelogs;
   font-weight: bold;
   margin-bottom: 10px;
   font-size: 14px;
+}
+
+.log-commit {
+  color: var(--color-text-muted, #888);
+  font-size: 10px;
+  margin-bottom: 8px;
 }
 
 .log-content {

@@ -40,10 +40,12 @@ playwright-report/
 coverage/
 .nyc_output/
 
-# Environment variables
+# Environment variables (never commit real secrets)
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
 
 # Temp files
 *.tmp

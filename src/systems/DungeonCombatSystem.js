@@ -218,7 +218,8 @@ export class DungeonCombatSystem {
      * @param {string} dungeonId - 副本ID
      * @param {Array} party - 已构建好的战斗队伍数组（来自 PartyFormationSystem.createDungeonPartyFromSnapshots）
      */
-    async startDungeonMultiplayer(dungeonId, party) {
+    async startDungeonMultiplayer(dungeonId, party, options = {}) {
+        const startEncounterIndex = options.startEncounterIndex || 0;
         let dungeonData = DungeonData?.[dungeonId];
         
         // 如果 DungeonData 中没有，尝试通过 DungeonRegistry 动态加载
@@ -258,7 +259,7 @@ export class DungeonCombatSystem {
         this.autoPlayMode = true;
         
         this.currentDungeon = dungeonData;
-        this.encounterIndex = 0;
+        this.encounterIndex = startEncounterIndex;
         
         // 直接使用外部注入的队伍，不从 stateManager 构建
         this.partyState = { members: party };
@@ -3818,7 +3819,11 @@ export class DungeonCombatSystem {
                     this.partyState.playerMember.id,
                     PositioningSystem.getAliveUnits(this.battlefield, 'enemy').map(p => p.unit.id)
                 )
-                : null
+                : null,
+
+            // 波次进度
+            encounterIndex:  this.encounterIndex,
+            totalEncounters: this.currentDungeon?.encounters?.length || 0,
         };
     }
 

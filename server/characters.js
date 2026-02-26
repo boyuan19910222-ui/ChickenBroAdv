@@ -1,7 +1,56 @@
 import { Router } from 'express'
 import { authenticateToken } from './middleware.js'
 
-// 职业基础配置（与 GameData.js 保持一致）
+// ── 运行时职业配置缓存（由 loadClassConfigs 初始化） ───────────────────────────────
+let _classConfigs = null  // classId → config
+
+/**
+ * 返回指定职业的配置。必须在 loadClassConfigs() 之后调用。
+ * @param {string} classId
+ * @returns {object}
+ */
+export function getClassConfig(classId) {
+    if (!_classConfigs) {
+        throw new Error('Class configs not loaded. Call loadClassConfigs(stmts) first.')
+    }
+    return _classConfigs[classId]
+}
+
+/**
+ * 从数据库加载全部职业配置到模块缓存。
+ * 服务启动时在 app.listen 前调用一次。
+ * @param {object} stmts
+ */
+export async function loadClassConfigs(stmts) {
+    const rows = await stmts.findAllClassConfigs.all()
+    if (!rows || rows.length === 0) {
+        throw new Error('[characters] class_configs table is empty. Run seed migration first.')
+    }
+    const map = {}
+    for (const row of rows) {
+        map[row.class_id] = {
+            name:            row.name,
+            baseStats:       row.base_stats,
+            growthPerLevel:  row.growth_per_level,
+            baseSkills:      row.base_skills,
+            resourceType:    row.resource_type,
+            resourceMax:     row.resource_max,
+        }
+    }
+    _classConfigs = map
+    console.log(`[characters] Loaded ${rows.length} class configs from DB.`)
+}
+
+/**
+ * 线上重新加载职业配置，无需重启进程（防展用）。
+ * @param {object} stmts
+ */
+export async function reloadClassConfigs(stmts) {
+    await loadClassConfigs(stmts)
+    console.log('[characters] Class configs reloaded.')
+}
+
+// Legacy placeholder — will be superseded by DB data at runtime
 const CLASS_CONFIG = {
     warrior: {
         name: '战士',
@@ -90,8 +139,8 @@ function generateExpTable() {
 }
 const EXP_TABLE = generateExpTable()
 
-// 有效职业列表
-const VALID_CLASSES = Object.keys(CLASS_CONFIG)
+// 有效职业列表（保留静态列表作为备用，运行时会从 _classConfigs 动态读取）
+const VALID_CLASSES = ['warrior', 'paladin', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'warlock', 'druid']
 
 // 最大角色数量
 const MAX_CHARACTERS_PER_USER = 5
@@ -106,7 +155,13 @@ const CHARACTER_NAME_RE = /^[\u4e00-\u9fa5a-zA-Z0-9_]{2,12}$/
  * @returns {object} 初始游戏状态
  */
 function createInitialGameState(name, characterClass) {
-    const config = CLASS_CONFIG[characterClass]
+    // Use DB-loaded config if available, fall back to hardcoded for tests/startup
+    let config
+    try {
+        config = getClassConfig(characterClass)
+    } catch {
+        config = CLASS_CONFIG[characterClass]
+    }
     if (!config) {
         throw new Error(`Invalid character class: ${characterClass}`)
     }
@@ -193,10 +248,10 @@ export function createCharactersRouter(stmts) {
 
     // ── GET /api/characters ─────────────────────────────
     // 获取角色列表
-    router.get('/', (req, res) => {
+    router.get('/', async (req, res) => {
         try {
             const userId = req.user.id
-            const characters = stmts.findCharactersByUserId.all(userId)
+            const characters = await stmts.findCharactersByUserId.all(userId)
 
             // 返回简化的角色信息（不包含完整 game_state）
             const result = characters.map(char => ({
@@ -217,13 +272,13 @@ export function createCharactersRouter(stmts) {
 
     // ── GET /api/characters/:id ─────────────────────────────
     // 获取单个角色
-    router.get('/:id', (req, res) => {
+    router.get('/:id', async (req, res) => {
         try {
             const { id } = req.params
             const userId = req.user.id
 
             // 验证角色归属
-            const character = stmts.findCharacterByIdAndUserId.get(id, userId)
+            const character = await stmts.findCharacterByIdAndUserId.get(id, userId)
             if (!character) {
                 return res.status(404).json({ error: 'NOT_FOUND', message: '角色不存在' })
             }
@@ -259,7 +314,7 @@ export function createCharactersRouter(stmts) {
 
     // ── POST /api/characters ─────────────────────────────
     // 创建角色
-    router.post('/', (req, res) => {
+    router.post('/', async (req, res) => {
         try {
             const userId = req.user.id
             const { name, class: characterClass } = req.body || {}
@@ -281,7 +336,7 @@ export function createCharactersRouter(stmts) {
             }
 
             // 检查角色数量限制
-            const countResult = stmts.countCharactersByUserId.get(userId)
+            const countResult = await stmts.countCharactersByUserId.get(userId)
             if (countResult.count >= MAX_CHARACTERS_PER_USER) {
                 return res.status(400).json({
                     error: 'CHARACTER_LIMIT_REACHED',
@@ -293,7 +348,7 @@ export function createCharactersRouter(stmts) {
             const gameState = createInitialGameState(name, characterClass)
 
             // 插入数据库
-            const result = stmts.insertCharacter.run(
+            const result = await stmts.insertCharacter.run(
                 userId,
                 name,
                 characterClass,
@@ -332,14 +387,14 @@ export function createCharactersRouter(stmts) {
 
     // ── PUT /api/characters/:id ─────────────────────────────
     // 更新角色（存档同步）
-    router.put('/:id', (req, res) => {
+    router.put('/:id', async (req, res) => {
         try {
             const { id } = req.params
             const userId = req.user.id
             const { game_state, level } = req.body || {}
 
             // 验证角色归属
-            const character = stmts.findCharacterByIdAndUserId.get(id, userId)
+            const character = await stmts.findCharacterByIdAndUserId.get(id, userId)
             if (!character) {
                 return res.status(404).json({ error: 'NOT_FOUND', message: '角色不存在' })
             }
@@ -364,7 +419,7 @@ export function createCharactersRouter(stmts) {
             const newLevel = level || (game_state.player?.level) || character.level
 
             // 更新数据库
-            stmts.updateCharacterGameState.run(gameStateStr, newLevel, id)
+            await stmts.updateCharacterGameState.run(gameStateStr, newLevel, id)
 
             return res.json({
                 success: true,
@@ -383,13 +438,13 @@ export function createCharactersRouter(stmts) {
 
     // ── DELETE /api/characters/:id ─────────────────────────────
     // 删除角色
-    router.delete('/:id', (req, res) => {
+    router.delete('/:id', async (req, res) => {
         try {
             const { id } = req.params
             const userId = req.user.id
 
             // 删除角色（SQL 已包含 user_id 验证）
-            const result = stmts.deleteCharacter.run(id, userId)
+            const result = await stmts.deleteCharacter.run(id, userId)
 
             if (result.changes === 0) {
                 return res.status(404).json({ error: 'NOT_FOUND', message: '角色不存在' })

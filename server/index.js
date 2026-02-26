@@ -6,8 +6,8 @@ import cors from 'cors'
 import config from './config.js'
 import { getDb, getStatements } from './db.js'
 import { createAuthRouter } from './auth.js'
-import { createCharactersRouter } from './characters.js'
-import { authenticateToken, authenticateSocket } from './middleware.js'
+import { createCharactersRouter, loadClassConfigs } from './characters.js'
+import { authenticateToken, authenticateSocket, globalErrorHandler } from './middleware.js'
 import { RoomManager } from './rooms.js'
 import { ChatManager, setupChat } from './chat.js'
 import { BattleEngine } from './BattleEngine.js'
@@ -34,8 +34,8 @@ app.use('/api/auth', createAuthRouter(stmts))
 app.use('/api/characters', createCharactersRouter(stmts))
 
 // Example protected route
-app.get('/api/me', authenticateToken, (req, res) => {
-    const user = stmts.findUserById.get(req.user.id)
+app.get('/api/me', authenticateToken, async (req, res) => {
+    const user = await stmts.findUserById.get(req.user.id)
     if (!user) {
         return res.status(404).json({ error: 'USER_NOT_FOUND', message: '用户不存在' })
     }
@@ -54,7 +54,7 @@ const io = new Server(httpServer, {
 io.use(authenticateSocket)
 
 // ── Managers ────────────────────────────────────────────────
-const chatManager = new ChatManager()
+const chatManager = new ChatManager({ stmts })
 
 /** @type {Map<string, BattleEngine>} roomId → BattleEngine (kept for loot generation) */
 const activeBattles = new Map()
@@ -83,7 +83,7 @@ async function launchBattle(room) {
         humanPlayers, room.dungeonId, dungeonMeta
     )
 
-    // 保存BattleEngine实例用于后续掉落计算
+    // 保存 BattleEngine 实例用于后续揔落计算
     const engine = new BattleEngine(io, room.id, room)
     engine.seed = seed
     engine.party = partySnapshots.map(m => ({
@@ -93,8 +93,14 @@ async function launchBattle(room) {
         armor: m.stats?.armor || Math.floor((m.level || 1) * 1.5),
         speed: 50,
     }))
+    // 保存 battleState 引用，用于重连时重发 battle:init
+    engine.battleState = { seed, snapshots: partySnapshots }
     activeBattles.set(room.id, engine)
     battleCompleteReceived.set(room.id, false)
+
+    // 持久化战斗状态，用于断线重连时恢复 battle:init
+    stmts.saveBattleState.run(room.id, { seed, snapshots: partySnapshots })
+        .catch(err => console.error('[battle] Failed to save battle state:', err))
 
     // 广播 battle:init（客户端收到后启动本地 DungeonCombatSystem）
     io.to(room.id).emit('battle:init', {
@@ -118,6 +124,7 @@ function sanitizeRoom(room) {
 
 // Room manager — hook into battle start
 const roomManager = new RoomManager({
+    stmts,
     onRoomStart(room) {
         // Broadcast battle start to all players in the room
         io.to(room.id).emit('room:battle_start', { room: sanitizeRoom(room) })
@@ -136,11 +143,37 @@ io.on('connection', (socket) => {
     const existingRoomId = roomManager.userRoomMap.get(socket.user.id)
     if (existingRoomId) {
         const room = roomManager.getRoom(existingRoomId)
-        if (room) {
+        if (!room || room.status === 'closed') {
+            // 映射已过期（房间已关闭或服务重启后未恢复），清理残留映射
+            roomManager.userRoomMap.delete(socket.user.id)
+            console.log(`[socket] Cleared stale userRoomMap for ${socket.user.username} (roomId=${existingRoomId})`)
+        } else {
+            // 重连时恢复玩家在线状态
+            const player = room.players.find(p => p.userId === socket.user.id)
+            if (player) player.isOnline = true
+
             socket.join(existingRoomId)
             console.log(`[socket] ${socket.user.username} rejoined room ${existingRoomId}`)
-            // 发送房间更新
+            // 发送房间更新（含最新 isOnline 状态）
             socket.emit('room:updated', { room: sanitizeRoom(room) })
+            // 同步通知房间内其他成员
+            socket.to(existingRoomId).emit('room:updated', { room: sanitizeRoom(room) })
+
+            // 若房间是战斗中，重发 battle:init 让客户端恢复战斗
+            if (room.status === 'in_battle') {
+                const engine = activeBattles.get(existingRoomId)
+                if (engine && engine.battleState) {
+                    socket.emit('battle:init', {
+                        dungeonId:        room.dungeonId,
+                        seed:             engine.battleState.seed,
+                        snapshots:        engine.battleState.snapshots,
+                        roomId:           existingRoomId,
+                        rejoin:           true,
+                        currentWaveIndex: engine.battleState.currentWaveIndex || 0,
+                    })
+                    console.log(`[socket] Resent battle:init to ${socket.user.username} for room ${existingRoomId}`)
+                }
+            }
         }
     }
 
@@ -148,7 +181,12 @@ io.on('connection', (socket) => {
     socket.on('room:create', ({ dungeonId, dungeonName, playerSnapshot }, callback) => {
         const result = roomManager.createRoom(socket.user, dungeonId, dungeonName, playerSnapshot)
         if (result.error) {
-            return callback?.({ error: result.error, message: result.message })
+            // 如果是 rejoin 情况，将 room 信息一并返回给客户端
+            return callback?.({
+                error: result.error,
+                message: result.message,
+                ...(result.rejoin ? { rejoin: true, room: sanitizeRoom(result.room) } : {})
+            })
         }
         socket.join(result.room.id)
         io.emit('room:list_updated', roomManager.getRoomList())
@@ -158,7 +196,12 @@ io.on('connection', (socket) => {
     socket.on('room:join', ({ roomId, playerSnapshot }, callback) => {
         const result = roomManager.joinRoom(roomId, socket.user, playerSnapshot)
         if (result.error) {
-            return callback?.({ error: result.error, message: result.message })
+            // 如果是 rejoin 情况，将原房间信息返回给客户端
+            return callback?.({
+                error: result.error,
+                message: result.message,
+                ...(result.rejoin ? { rejoin: true, room: sanitizeRoom(result.room) } : {})
+            })
         }
         socket.join(roomId)
         io.to(roomId).emit('room:updated', { room: sanitizeRoom(result.room) })
@@ -198,6 +241,26 @@ io.on('connection', (socket) => {
         // room:battle_start is already emitted by onRoomStart callback
         io.emit('room:list_updated', roomManager.getRoomList())
         callback?.({ room: sanitizeRoom(result.room) })
+    })
+
+    // ── 客户端上报波次进度（用于持久化和断线重连恢复）──
+    socket.on('battle:wave_progress', ({ roomId, waveIndex, totalWaves }) => {
+        const engine = activeBattles.get(roomId)
+        if (!engine) return
+
+        // 更新内存中的波次记录
+        if (engine.battleState) {
+            engine.battleState.currentWaveIndex = waveIndex
+            engine.battleState.totalWaves       = totalWaves
+        }
+
+        // 持久化到 DB
+        stmts.saveBattleState.run(roomId, engine.battleState)
+            .catch(err => console.error('[battle] Failed to save wave progress:', err))
+
+        // 广播给同房间其他玩家，让 UI 同步更新
+        socket.to(roomId).emit('battle:wave_updated', { waveIndex, totalWaves })
+        console.log(`[battle] Wave progress updated: room=${roomId}, wave=${waveIndex}/${totalWaves}`)
     })
 
     // ── 客户端上报战斗结果 ────────────────────────────
@@ -279,10 +342,84 @@ io.on('connection', (socket) => {
 
 // Setup chat
 setupChat(io, roomManager, chatManager)
+// Global error handler (must be after all routes)
+app.use(globalErrorHandler)
 
+/**
+ * 服务重启时恢复 in_battle 状态的房间和战斗引擎。
+ * 从 DB 读取 battle_state，重建 BattleEngine 以支持断线重连时重发 battle:init。
+ */
+async function recoverInBattleRooms() {
+    let rows
+    try {
+        rows = await stmts.findInBattleRooms.all()
+    } catch (err) {
+        console.error('[battle] Failed to query in_battle rooms for recovery:', err)
+        return
+    }
+
+    let recovered = 0
+    for (const row of rows) {
+        const battleState = row.battle_state
+        if (!battleState) continue
+
+        // 恢复房间到内存
+        const room = {
+            id:              row.id,
+            hostId:          row.host_id,
+            dungeonId:       row.dungeon_id,
+            dungeonName:     row.dungeon_name,
+            status:          'in_battle',
+            maxPlayers:      row.max_players,
+            players:         Array.isArray(row.players) ? row.players : JSON.parse(row.players || '[]'),
+            createdAt:       new Date(row.created_at),
+            waitTimer:       null,
+            battleStartedAt: row.battle_started_at ? new Date(row.battle_started_at) : null,
+        }
+        roomManager.rooms.set(row.id, room)
+
+        // 恢复 userRoomMap（只恢复真人玩家）
+        for (const p of room.players) {
+            if (p.userId > 0) {
+                roomManager.userRoomMap.set(p.userId, row.id)
+            }
+        }
+
+        // 重建 BattleEngine（不重跑战斗，仅用于揔落和重连重发）
+        const engine = new BattleEngine(io, row.id, room)
+        engine.seed = battleState.seed
+        engine.battleState = battleState
+        engine.party = (battleState.snapshots || []).map(m => ({
+            ...m,
+            side: 'player',
+            damage: m.stats?.strength || m.stats?.agility || (10 + (m.level || 1) * 2),
+            armor: m.stats?.armor || Math.floor((m.level || 1) * 1.5),
+            speed: 50,
+        }))
+        activeBattles.set(row.id, engine)
+        battleCompleteReceived.set(row.id, false)
+
+        recovered++
+        console.log(`[battle] Recovered in_battle room ${row.id} (dungeon=${row.dungeon_id})`)
+    }
+
+    console.log(`[battle] In-battle room recovery complete: ${recovered} restored.`)
+}
 // ── Start ───────────────────────────────────────────────────
-httpServer.listen(config.port, '0.0.0.0', () => {
-    console.log(`[server] ChickenBro server running on port ${config.port}`)
-})
+;(async () => {
+    try {
+        await loadClassConfigs(stmts)
+        await chatManager.loadHistory(stmts)
+        await roomManager.recoverRooms(stmts)
+        await recoverInBattleRooms()
+    } catch (err) {
+        console.error('[server] Startup initialization failed:', err)
+        process.exit(1)
+    }
+
+    httpServer.listen(config.port, '0.0.0.0', () => {
+        console.log(`[server] ChickenBro server running on port ${config.port}`)
+    })
+})()
 
 export { app, httpServer, io, roomManager, chatManager, activeBattles }

@@ -14,7 +14,7 @@ const RATE_LIMIT_WINDOW = 1000   // 1 second
 const RATE_LIMIT_MAX = 2         // max 2 messages per window
 
 export class ChatManager {
-    constructor() {
+    constructor(options = {}) {
         /** @type {Array<Object>} 最近大厅消息 */
         this.lobbyMessages = []
         this.maxLobbyMessages = MAX_LOBBY_MESSAGES
@@ -24,6 +24,9 @@ export class ChatManager {
 
         /** @type {Map<string|number, Array<number>>} userId → [timestamp, ...] */
         this._rateLimits = new Map()
+
+        /** @type {object|null} Statement adapters for DB persistence (optional) */
+        this._stmts = options.stmts || null
     }
 
     /**
@@ -64,10 +67,24 @@ export class ChatManager {
 
             this._addRoomMessage(data.roomId, msg)
             io.to(data.roomId).emit('chat:message', msg)
+
+            // Write-behind: 异步写入数据库，失败不阻断广播
+            if (this._stmts) {
+                this._stmts.insertChatMessage.run(
+                    user.id, msg.nickname, msg.content, 'room', data.roomId, msg.timestamp
+                ).catch(err => console.error('[chat] Failed to persist room message:', err))
+            }
         } else {
             // 大厅聊天
             this._addLobbyMessage(msg)
             io.emit('chat:message', msg)
+
+            // Write-behind: 异步写入数据库，失败不阻断广播
+            if (this._stmts) {
+                this._stmts.insertChatMessage.run(
+                    user.id, msg.nickname, msg.content, 'lobby', null, msg.timestamp
+                ).catch(err => console.error('[chat] Failed to persist lobby message:', err))
+            }
         }
 
         return null
@@ -96,6 +113,28 @@ export class ChatManager {
      */
     clearRoomHistory(roomId) {
         this.roomMessages.delete(roomId)
+    }
+
+    /**
+     * 从数据库预加载大厅聊天历史到内存缓存。
+     * 服务启动时在 app.listen 前调用。
+     * @param {object} stmts
+     */
+    async loadHistory(stmts) {
+        try {
+            const rows = await stmts.getLobbyHistory.all(this.maxLobbyMessages)
+            this.lobbyMessages = rows.map(r => ({
+                id:        `${r.timestamp}_${r.user_id}`,
+                userId:    r.user_id,
+                nickname:  r.nickname,
+                content:   r.content,
+                timestamp: Number(r.timestamp),
+                type:      r.type,
+            }))
+            console.log(`[chat] Loaded ${this.lobbyMessages.length} lobby messages from DB.`)
+        } catch (err) {
+            console.error('[chat] Failed to load chat history from DB:', err)
+        }
     }
 
     // ────────────────────────────────────────────────────

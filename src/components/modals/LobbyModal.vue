@@ -250,7 +250,7 @@ async function createRoom() {
       return
     }
 
-    // 成功创建，跳转到等待房间
+    // 成功创建（或重新加入已有房间），跳转到等待房间
     emit('close')
     router.push(`/waiting/${res.room.id}`)
   } finally {
