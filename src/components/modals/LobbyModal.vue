@@ -230,6 +230,7 @@ async function createRoom() {
 
     // 构建玩家快照
     const playerSnapshot = {
+      characterId: gameStore.currentCharacterId,  // 添加 characterId 用于服务端奖励发放
       name: player.value?.name || 'Unknown',
       classId: player.value?.class || 'warrior',
       level: player.value?.level || 1,
@@ -288,6 +289,7 @@ async function joinRoom(room) {
 
   // 构建玩家快照
   const playerSnapshot = {
+    characterId: gameStore.currentCharacterId,  // 添加 characterId 用于服务端奖励发放
     name: player.value?.name || 'Unknown',
     classId: player.value?.class || 'warrior',
     level: player.value?.level || 1,

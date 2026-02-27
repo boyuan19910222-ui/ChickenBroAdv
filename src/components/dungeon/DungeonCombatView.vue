@@ -274,7 +274,9 @@
     <!-- 多人模式：掉落结果弹窗 -->
     <div v-if="showLootModal" class="loot-modal-overlay" @click.self="closeLootModal">
       <div class="loot-modal-dialog">
-        <div class="loot-modal-title">🎁 通关奖励</div>
+        <div class="loot-modal-title">
+          {{ alreadyClaimed ? '🎁 奖励已发放' : '🎁 通关奖励' }}
+        </div>
         <div class="loot-modal-items">
           <div v-for="(item, idx) in mpLootItems" :key="idx" class="loot-item-row">
             <span class="loot-item-icon">{{ item.emoji || '📦' }}</span>
@@ -284,7 +286,12 @@
           <div v-if="mpLootItems.length === 0" class="loot-empty">暂无掉落</div>
         </div>
         <div class="loot-modal-actions">
-          <button class="pixel-btn loot-confirm-btn" @click="closeLootModal">确认</button>
+          <button v-if="!alreadyClaimed" class="pixel-btn loot-confirm-btn" @click="closeLootModal">
+            领取奖励
+          </button>
+          <button v-else class="pixel-btn loot-claimed-btn" @click="closeLootModal">
+            已领取
+          </button>
         </div>
       </div>
     </div>
@@ -317,6 +324,7 @@ const mpChatRef = ref(null)
 const mpChatMessages = computed(() => multiplayerStore.roomMessages)
 const showLootModal = ref(false)
 const mpLootItems = ref([])
+const alreadyClaimed = ref(false)  // 标记奖励是否已由服务端发放
 const multiplayerBattleStatus = ref('')
 let multiplayerAdapter = null
 
@@ -840,10 +848,11 @@ async function startDungeonMultiplayer() {
     // 监听多人模式特有事件
     const eventBus = gameStore.eventBus
     
-    const onLootReceived = ({ items }) => {
+    const onLootReceived = ({ items, alreadyClaimed: claimed }) => {
       mpLootItems.value = items || []
+      alreadyClaimed.value = claimed || false
       showLootModal.value = true
-      multiplayerBattleStatus.value = '战斗结束 — 查看奖励'
+      multiplayerBattleStatus.value = claimed ? '战斗结束 — 奖励已发放' : '战斗结束 — 查看奖励'
     }
     const onBattleFinished = () => {
       multiplayerBattleStatus.value = '服务端结算完成'
@@ -894,6 +903,20 @@ function sendMpChat() {
  * 关闭掉落弹窗并返回大厅
  */
 function closeLootModal() {
+  // 将服务端下发的奖励写入本地存档背包（仅当未在服务端发放时）
+  if (!alreadyClaimed.value && mpLootItems.value.length > 0) {
+    const slot = gameStore.engine?.currentSlot || 1
+    const saved = gameStore.saveManager?.applyLootToSave(mpLootItems.value, slot)
+    if (saved) {
+      console.log(`[DungeonCombatView] 奖励已写入存档槽位 ${slot}，共 ${mpLootItems.value.length} 件`)
+    } else {
+      console.warn('[DungeonCombatView] 奖励写入存档失败，saveManager 不可用')
+    }
+  } else if (alreadyClaimed.value) {
+    console.log('[DungeonCombatView] 奖励已由服务端发放，跳过本地写入')
+  }
+  mpLootItems.value = []
+  alreadyClaimed.value = false
   showLootModal.value = false
   // 清理多人战斗状态并通知服务端离开房间
   multiplayerStore.battleState = 'idle'
@@ -2464,6 +2487,18 @@ function autoNextAfterRest() {
 
 .loot-confirm-btn:hover {
   background: rgba(255, 200, 0, 0.4);
+}
+
+.loot-claimed-btn {
+  background: rgba(100, 255, 100, 0.2);
+  border: 1px solid #4caf50;
+  color: #4caf50;
+  padding: 6px 24px;
+  cursor: pointer;
+}
+
+.loot-claimed-btn:hover {
+  background: rgba(100, 255, 100, 0.4);
 }
 
 </style>

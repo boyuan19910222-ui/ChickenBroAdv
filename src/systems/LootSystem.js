@@ -77,8 +77,9 @@ export default class LootSystem {
             }
         })
 
-        // 副本通关 → 装备奖励
+        // 副本通关 → 装备奖励（多人模式由服务端统一结算，跳过本地生成）
         this.engine.eventBus.on('dungeon:complete', (data) => {
+            if (data.isMultiplayer) return
             if (data.dungeon) {
                 this.handleDungeonReward(data.dungeon)
             }

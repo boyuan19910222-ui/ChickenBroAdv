@@ -2,6 +2,7 @@
  * 存档管理器 - 游戏数据持久化
  */
 import { migrate, CURRENT_VERSION } from './SaveMigration.js'
+import { QualityConfig } from '@/data/EquipmentData.js'
 
 export class SaveManager {
     static MAX_SLOTS = 10
@@ -175,8 +176,22 @@ export class SaveManager {
         if (!gameState.player.inventory) {
             gameState.player.inventory = []
         }
-        gameState.player.inventory.push(...items)
 
-        return this.save(gameState, slot)
+        // 添加物品到背包并触发掉落日志
+        for (const item of items) {
+            gameState.player.inventory.push(item)
+
+            // 触发掉落日志（与 LootSystem._giveItemToPlayer 保持一致）
+            const qualityCfg = QualityConfig?.[item.quality]
+            const logMessage = `${qualityCfg?.emoji || '📦'} ${item.name} (iLvl ${item.itemLevel}) — 装备掉落`
+            this.eventBus?.emit('loot:log', logMessage)
+        }
+
+        const saved = this.save(gameState, slot)
+
+        // 触发状态变化事件，让 gameStore 同步到 store
+        this.eventBus?.emit('state:change')
+
+        return saved
     }
 }

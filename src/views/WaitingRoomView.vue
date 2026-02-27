@@ -174,6 +174,7 @@ async function rejoinRoom(force = false) {
     // 构建玩家快照
     const player = gameStore.player
     const playerSnapshot = {
+        characterId: gameStore.currentCharacterId,  // 添加 characterId 用于服务端奖励发放
         name: player?.name || 'Unknown',
         classId: player?.class || 'warrior',
         level: player?.level || 1,
