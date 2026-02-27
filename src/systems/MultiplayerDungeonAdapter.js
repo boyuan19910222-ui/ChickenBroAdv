@@ -94,11 +94,18 @@ export class MultiplayerDungeonAdapter {
 
         // 8. 监听 battle:reward Socket 事件
         if (multiplayerStore.socket) {
-            const onReward = ({ userId, items }) => {
+            const onReward = ({ userId, items, alreadyClaimed }) => {
                 if (String(userId) === normalizedCurrentUserId) {
-                    console.log('[MultiplayerDungeonAdapter] 收到个人掉落:', items?.length, '件');
+                    console.log('[MultiplayerDungeonAdapter] 收到个人掉落:', items?.length, '件, 已发放:', alreadyClaimed);
                     multiplayerStore.lootItems = items || [];
-                    gameStore.eventBus.emit('multiplayer:lootReceived', { items });
+
+                    if (alreadyClaimed) {
+                        // 服务端已发放，从服务器同步最新 game_state
+                        console.log('[MultiplayerDungeonAdapter] 服务端已发放奖励，从服务器同步 game_state');
+                        this._syncFromServer();
+                    }
+
+                    gameStore.eventBus.emit('multiplayer:lootReceived', { items, alreadyClaimed });
                 }
             };
             const onFinished = () => {
@@ -178,7 +185,7 @@ export class MultiplayerDungeonAdapter {
      */
     _reportBattleResult(result, data, roomId) {
         const multiplayerStore = useMultiplayerStore();
-        
+
         if (multiplayerStore.socket?.connected) {
             multiplayerStore.socket.emit('battle:complete', {
                 roomId,
@@ -188,6 +195,71 @@ export class MultiplayerDungeonAdapter {
             console.log(`[MultiplayerDungeonAdapter] 已上报战斗结果: ${result}`);
         } else {
             console.warn('[MultiplayerDungeonAdapter] Socket 未连接，无法上报战斗结果');
+        }
+    }
+
+    /**
+     * 从服务器同步最新的 game_state（服务端奖励发放后调用）
+     * @private
+     */
+    async _syncFromServer() {
+        const gameStore = useGameStore();
+        const characterId = gameStore.currentCharacterId;
+        if (!characterId) {
+            console.warn('[MultiplayerDungeonAdapter] 无 characterId，无法同步 game_state');
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('mp_token');
+            if (!token) {
+                console.warn('[MultiplayerDungeonAdapter] 无 token，无法同步 game_state');
+                return;
+            }
+
+            const apiHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'http://127.0.0.1:3001'
+                : `http://${window.location.hostname}:3001`;
+            const url = `${apiHost}/api/characters/${characterId}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                console.error('[MultiplayerDungeonAdapter] 同步 game_state 失败:', response.status);
+                return;
+            }
+
+            const data = await response.json();
+            const characterData = data.character;
+
+            if (characterData && characterData.game_state && characterData.game_state.player) {
+                // 记录同步前的背包大小，用于计算新增物品
+                const oldInventorySize = gameStore.player?.inventory?.length || 0;
+
+                // 更新 gameStore.player（使用 $patch 触发响应式更新）
+                gameStore.$patch({ player: characterData.game_state.player });
+
+                // 触发掉落日志（只记录新增的物品）
+                const newInventory = characterData.game_state.player.inventory || [];
+                const newItems = newInventory.slice(oldInventorySize);
+
+                if (newItems.length > 0) {
+                    const { QualityConfig } = await import('@/data/EquipmentData.js');
+                    for (const item of newItems) {
+                        const qualityCfg = QualityConfig?.[item.quality];
+                        const logMessage = `${qualityCfg?.emoji || '📦'} ${item.name} (iLvl ${item.itemLevel}) — 装备掉落`;
+                        gameStore.eventBus?.emit('loot:log', logMessage);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[MultiplayerDungeonAdapter] 同步 game_state 出错:', error);
         }
     }
 

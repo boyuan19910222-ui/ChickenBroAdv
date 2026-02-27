@@ -363,7 +363,7 @@ io.on('connection', (socket) => {
     })
 
     // ── 客户端上报战斗结果 ────────────────────────────
-    socket.on('battle:complete', ({ roomId, result, dungeonId }) => {
+    socket.on('battle:complete', async ({ roomId, result, dungeonId }) => {
         console.log(`[battle] battle:complete from ${socket.user.username}: room=${roomId}, result=${result}`)
 
         const engine = activeBattles.get(roomId)
@@ -391,25 +391,74 @@ io.on('connection', (socket) => {
         if (allCompleted) {
             console.log(`[battle] All human players completed for room ${roomId}, finalizing battle`)
 
-            // 胜利时计算并下发个人掉落（只发给完成战斗的玩家）
+            // 胜利时计算并发放个人掉落（只发给完成战斗的玩家）
             if (result === 'victory') {
                 const lootResults = engine.generatePersonalLoot()
 
-                // 持久化奖励到数据库
+                // 持久化奖励到数据库（rooms 表）
                 stmts.saveRoomRewards.run(roomId, lootResults)
                     .catch(err => console.error('[battle] Failed to persist rewards:', err))
 
-                // 发送奖励给完成的玩家
+                // 直接更新角色数据库中的 game_state（服务端发放）
+                for (const [userId, items] of Object.entries(lootResults)) {
+                    const playerResult = completionTracking.get(Number(userId))
+
+                    if (playerResult === 'victory') {
+                        // 找到玩家对应的 characterId（在 snapshot 内部）
+                        const player = room.players.find(p => p.userId === Number(userId))
+                        const characterId = player?.snapshot?.characterId
+
+                        if (!characterId) {
+                            console.warn(`[battle] No characterId for userId=${userId}, skipping reward`)
+                            continue
+                        }
+
+                        // 读取角色 game_state
+                        const character = await stmts.findCharacterById.get(characterId)
+                        if (!character) {
+                            console.warn(`[battle] Character not found: characterId=${characterId}`)
+                            continue
+                        }
+
+                        let gameState
+                        try {
+                            gameState = JSON.parse(character.game_state || '{}')
+                        } catch (e) {
+                            console.error('[battle] Failed to parse game_state:', e)
+                            continue
+                        }
+
+                        // 确保有 player 和 inventory
+                        if (!gameState.player) gameState.player = {}
+                        if (!gameState.player.inventory) gameState.player.inventory = []
+
+                        // 添加奖励物品到背包
+                        gameState.player.inventory.push(...items)
+
+                        // 更新角色数据库
+                        const updatedLevel = gameState.player?.level || character.level
+                        await stmts.updateCharacterGameState.run(
+                            JSON.stringify(gameState),
+                            updatedLevel,
+                            characterId
+                        )
+
+                        console.log(`[battle] Rewards added to character ${characterId} (userId=${userId}), ${items.length} items`)
+                    }
+                }
+                console.log(`[battle] Loot distributed and persisted for room ${roomId}`)
+
+                // 发送奖励通知给完成的玩家（现在奖励已在数据库中）
                 for (const [userId, items] of Object.entries(lootResults)) {
                     const playerResult = completionTracking.get(Number(userId))
                     if (playerResult === 'victory') {
                         io.to(roomId).emit('battle:reward', {
                             userId: Number(userId),
                             items,
+                            alreadyClaimed: true,  // 标记为已自动发放
                         })
                     }
                 }
-                console.log(`[battle] Loot distributed and persisted for room ${roomId}`)
             }
 
             // 通知所有客户端服务端结算完成
