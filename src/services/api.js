@@ -2,7 +2,7 @@
 const API_HOST = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://127.0.0.1:3001'
     : `http://${window.location.hostname}:3001`
-const API_BASE = `${API_HOST}/api`
+const API_BASE = `${API_HOST}/api/v1`
 
 /**
  * 工具函数：获取认证头

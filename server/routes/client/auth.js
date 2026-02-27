@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import config from './config.js'
+import config from '../../config.js'
 
 // Validation patterns
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/

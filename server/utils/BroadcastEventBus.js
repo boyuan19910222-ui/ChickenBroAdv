@@ -4,7 +4,7 @@
  * 而是客户端本地执行 DungeonCombatSystem（autoPlayMode）。
  * 保留此文件仅为兼容 BattleEngine 的 import（BattleEngine 也已精简为仅掉落计算）。
  */
-import { EventBus } from '../src/core/EventBus.js'
+import { EventBus } from '../../src/core/EventBus.js'
 
 /**
  * 广播事件总线 - 继承 EventBus，emit 时额外通过 Socket.IO 广播给房间内所有客户端

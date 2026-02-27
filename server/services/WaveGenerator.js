@@ -1,4 +1,4 @@
-import { DungeonRegistry } from '../src/data/dungeons/DungeonRegistry.js'
+import { DungeonRegistry } from '../../src/data/dungeons/DungeonRegistry.js'
 
 /**
  * 服务端波次生成器

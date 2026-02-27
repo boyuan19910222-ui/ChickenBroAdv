@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
-import config from './config.js'
-import { DungeonRegistry } from '../src/data/dungeons/DungeonRegistry.js'
+import config from '../config.js'
+import { DungeonRegistry } from '../../src/data/dungeons/DungeonRegistry.js'
 
 /** 合法职业列表 */
 const VALID_CLASS_IDS = ['warrior', 'paladin', 'rogue', 'hunter', 'mage', 'warlock', 'priest', 'shaman', 'druid']

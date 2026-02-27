@@ -11,7 +11,7 @@
  */
 
 import { Op } from 'sequelize'
-import { sequelize, User, Character, BattleRecord, ChatMessage, ClassConfig, Room } from './models/index.js'
+import { sequelize, User, Character, BattleRecord, ChatMessage, ClassConfig, Room } from '../models/index.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
