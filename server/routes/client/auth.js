@@ -63,14 +63,14 @@ export function createAuthRouter(stmts) {
             // Generate JWT with appropriate expiration
             const expiresIn = auto_login ? config.jwtExpiresInAutoLogin : config.jwtExpiresIn
             const token = jwt.sign(
-                { id: Number(userId), username, nickname },
+                { id: Number(userId), username, nickname, is_admin: 0 },
                 config.jwtSecret,
                 { expiresIn }
             )
 
             return res.status(201).json({
                 token,
-                user: { id: Number(userId), username, nickname },
+                user: { id: Number(userId), username, nickname, is_admin: 0 },
             })
         } catch (err) {
             console.error('[auth/register]', err)
@@ -113,7 +113,7 @@ export function createAuthRouter(stmts) {
             const expiresIn = auto_login ? config.jwtExpiresInAutoLogin : config.jwtExpiresIn
 
             const token = jwt.sign(
-                { id: user.id, username: user.username, nickname: user.nickname },
+                { id: user.id, username: user.username, nickname: user.nickname, is_admin: user.is_admin || 0 },
                 config.jwtSecret,
                 { expiresIn }
             )
@@ -124,6 +124,7 @@ export function createAuthRouter(stmts) {
                     id: user.id,
                     username: user.username,
                     nickname: user.nickname,
+                    is_admin: user.is_admin || 0,
                 },
             })
         } catch (err) {

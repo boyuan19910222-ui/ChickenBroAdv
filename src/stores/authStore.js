@@ -21,6 +21,10 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Getters
     const isLoggedIn = computed(() => !!token.value && !!user.value)
+    const isAdmin = computed(() => {
+        const stored = localStorage.getItem('mp_is_admin')
+        return stored === '1' || stored === 1
+    })
 
     // Actions
     async function login(username, password, autoLoginFlag = false) {
@@ -47,6 +51,8 @@ export const useAuthStore = defineStore('auth', () => {
             localStorage.setItem('mp_token', data.token)
             localStorage.setItem('mp_user', JSON.stringify(data.user))
             localStorage.setItem('mp_autoLogin', autoLoginFlag.toString())
+            // Store is_admin for admin panel access check
+            localStorage.setItem('mp_is_admin', (data.user.is_admin || 0).toString())
             return true
         } catch (err) {
             error.value = '网络错误，请检查服务器连接'
@@ -82,6 +88,8 @@ export const useAuthStore = defineStore('auth', () => {
             localStorage.setItem('mp_token', data.token)
             localStorage.setItem('mp_user', JSON.stringify(data.user))
             localStorage.setItem('mp_autoLogin', autoLoginFlag.toString())
+            // Store is_admin for admin panel access check
+            localStorage.setItem('mp_is_admin', (data.user.is_admin || 0).toString())
             return true
         } catch (err) {
             error.value = '网络错误，请检查服务器连接'
@@ -136,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
         error,
         // Getters
         isLoggedIn,
+        isAdmin,
         // Actions
         login,
         register,

@@ -8,7 +8,15 @@
       "Bash(head:*)",
       "Bash(cd /c/workspace/project/ChickenBroAdv && openspec list --json 2>&1)",
       "Bash(cd /c/workspace/project/ChickenBroAdv && git push origin yclnycl20260226dev 2>&1)",
-      "Bash(cd /c/workspace/project/ChickenBroAdv && git add .github/workflows/deploy.yml 2>&1)"
+      "Bash(cd /c/workspace/project/ChickenBroAdv && git add .github/workflows/deploy.yml 2>&1)",
+      "Bash(git mv:*)",
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nrefactor: 服务端目录结构重构 & API 版本化 \\(v1.7.0\\)\n\n- 重构服务端目录按职责分层（routes/middleware/services/sockets/utils）\n- 精简入口文件 index.js，路由/Socket 事件拆分到独立模块\n- API 路径版本化，前端用户接口使用 /api/v1/* 前缀\n- 预留管理后台路由结构 /api/admin/*\n- Socket 事件处理器按功能分类\n- 中间件模块化（auth.js/errorHandler.js）\n- 更新前端 API 调用路径适配新版路由\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(npm run migrate:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

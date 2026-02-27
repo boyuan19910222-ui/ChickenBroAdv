@@ -36,9 +36,11 @@
         >注册</button>
       </div>
 
-      <!-- 错误提示 -->
-      <div v-if="authStore.error" class="error-msg">
-        {{ authStore.error }}
+      <!-- 管理面板入口按钮（仅管理员可见） -->
+      <div v-if="authStore.isAdmin" class="admin-entry-btn">
+        <a href="/admin.html" class="pixel-btn secondary">
+          进入管理面板
+        </a>
       </div>
 
       <!-- 登录表单 -->
