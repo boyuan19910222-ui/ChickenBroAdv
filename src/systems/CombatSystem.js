@@ -125,6 +125,11 @@ export class CombatSystem {
         this.engine.eventBus.on('combat:flee', () => {
             this.attemptFlee();
         });
+
+        // 监听跑尸结束事件
+        this.engine.eventBus.on('ghost-run:end', () => {
+            this.handleGhostRunEnd();
+        });
     }
 
     /**
@@ -147,6 +152,13 @@ export class CombatSystem {
         if (!player.statistics) player.statistics = { monstersKilled: 0, damageDealt: 0, damageTaken: 0, healingDone: 0, goldEarned: 0 };
         if (!player.buffs) player.buffs = [];
         if (!player.debuffs) player.debuffs = [];
+        if (!player.talents) player.talents = [];
+        
+        // 确保talents是数组格式（兼容旧的对象格式）
+        if (player.talents && !Array.isArray(player.talents)) {
+            // 如果talents是对象格式，转换为空数组（避免兼容性问题）
+            player.talents = [];
+        }
         
         // 根据区域等级范围缩放敌人属性
         // 怪物实际等级 = 区域等级范围内随机浮动，不会因玩家等级无限膨胀
@@ -955,12 +967,14 @@ export class CombatSystem {
 
         // 玩家死亡
         if (player.currentHp <= 0) {
+            console.log('[CombatSystem] Player died, ending combat');
             this.endCombat(false);
             return true;
         }
 
         // 敌人死亡
         if (this.enemy.currentHp <= 0) {
+            console.log('[CombatSystem] Enemy died, ending combat');
             this.endCombat(true);
             return true;
         }
@@ -1050,35 +1064,66 @@ export class CombatSystem {
 
             this.engine.eventBus.emit('combat:victory', { enemy: this.enemy, gold: goldEarned, exp: expEarned });
         } else {
+            // 玩家死亡 - 启动跑尸效果
             this.addLog(`💀 战斗失败...`, 'system');
             
-            // 死亡惩罚：满级扣10%金币，否则扣30%经验
-            if (player.level >= 60) {
-                const goldLost = Math.floor(player.gold * 0.1);
-                player.gold -= goldLost;
-                if (goldLost > 0) {
-                    this.addLog(`💸 损失 ${goldLost} 金币`, 'system');
-                    this.engine.eventBus.emit('loot:log', `💸 -${goldLost} 金币（死亡惩罚）`);
-                }
-            } else {
-                const expLost = Math.floor(player.experience * 0.3);
-                if (expLost > 0) {
-                    player.experience = Math.max(0, player.experience - expLost);
-                    this.addLog(`💀 损失 ${expLost} 经验值`, 'system');
-                    this.engine.eventBus.emit('loot:log', `💀 -${expLost} 经验值（死亡惩罚）`);
-                }
-            }
-            
-            player.currentHp = Math.floor(player.maxHp * 0.2); // 复活时20%血量
-
-            // 死亡复活：怒气清零（怒气是战斗资源，死亡后不应保留）
-            if (player.resource && player.resource.type === 'rage') {
-                player.resource.current = 0;
-            }
-            
-            this.engine.stateManager.set('player', player);
-            this.engine.eventBus.emit('combat:defeat', {});
+            // 发射跑尸开始事件，延迟死亡处理
+            console.log('[CombatSystem] Emitting ghost-run:start event');
+            console.log('[CombatSystem] EventBus instance:', this.engine.eventBus);
+            console.log('[CombatSystem] EventBus listeners before emit:', this.engine.eventBus.listenerCount?.('ghost-run:start') || 'listenerCount not available');
+            // Add a small delay to ensure components are ready
+            setTimeout(() => {
+                console.log('[CombatSystem] Actually emitting ghost-run:start event now');
+                this.engine.eventBus.emit('ghost-run:start');
+                console.log('[CombatSystem] Event emitted, listeners still registered:', this.engine.eventBus.listenerCount?.('ghost-run:start') || 'listenerCount not available');
+            }, 200);
+            return; // 返回，等待ghost-run:end事件继续处理
         }
+
+        // 清理战斗状态
+        this.engine.stateManager.set('combat', null);
+        this.enemy = null;
+        this.activePet = null;
+
+        // 切换回探索场景
+        setTimeout(() => {
+            this.engine.eventBus.emit('scene:change', 'exploration');
+        }, 2000);
+    }
+
+    /**
+     * 处理跑尸结束，继续死亡逻辑
+     */
+    handleGhostRunEnd() {
+        console.log('[CombatSystem] handleGhostRunEnd called - continuing death logic');
+        const player = this.engine.stateManager.get('player');
+        
+        // 死亡惩罚：满级扣10%金币，否则扣30%经验
+        if (player.level >= 60) {
+            const goldLost = Math.floor(player.gold * 0.1);
+            player.gold -= goldLost;
+            if (goldLost > 0) {
+                this.addLog(`💸 损失 ${goldLost} 金币`, 'system');
+                this.engine.eventBus.emit('loot:log', `💸 -${goldLost} 金币（死亡惩罚）`);
+            }
+        } else {
+            const expLost = Math.floor(player.experience * 0.3);
+            if (expLost > 0) {
+                player.experience = Math.max(0, player.experience - expLost);
+                this.addLog(`💀 损失 ${expLost} 经验值`, 'system');
+                this.engine.eventBus.emit('loot:log', `💀 -${expLost} 经验值（死亡惩罚）`);
+            }
+        }
+        
+        player.currentHp = Math.floor(player.maxHp * 0.2); // 复活时20%血量
+
+        // 死亡复活：怒气清零（怒气是战斗资源，死亡后不应保留）
+        if (player.resource && player.resource.type === 'rage') {
+            player.resource.current = 0;
+        }
+        
+        this.engine.stateManager.set('player', player);
+        this.engine.eventBus.emit('combat:defeat', {});
 
         // 清理战斗状态
         this.engine.stateManager.set('combat', null);
@@ -1207,7 +1252,10 @@ export class CombatSystem {
      * 检查猎人是否有野兽控制天赋T4（enhance_skill 类型的 beastMasteryTalent）
      */
     _hasBeastMasteryTalent(player) {
-        if (!player.talents) return false;
+        // 确保talents存在且为数组
+        if (!player.talents || !Array.isArray(player.talents)) {
+            return false;
+        }
         return player.talents.some(t => t.id === 'beastMasteryTalent' && t.currentPoints > 0);
     }
 
