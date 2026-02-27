@@ -2,12 +2,15 @@ import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 import config from './config.js'
 import { getDb, getStatements } from './db.js'
 import { createAuthRouter } from './auth.js'
 import { createCharactersRouter, loadClassConfigs } from './characters.js'
 import { authenticateToken, authenticateSocket, globalErrorHandler } from './middleware.js'
+import adminRouter from './routes/admin.js'
 import { RoomManager } from './rooms.js'
 import { ChatManager, setupChat } from './chat.js'
 import { BattleEngine } from './BattleEngine.js'
@@ -24,6 +27,10 @@ const httpServer = createServer(app)
 app.use(cors())
 app.use(express.json())
 
+// Static file serving for admin panel
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+app.use('/admin', express.static(path.join(__dirname, '../src/admin')))
+
 // Initialize database
 const db = getDb()
 const stmts = getStatements()
@@ -33,6 +40,9 @@ app.use('/api/auth', createAuthRouter(stmts))
 
 // Character routes (protected)
 app.use('/api/characters', createCharactersRouter(stmts))
+
+// Admin routes (protected with admin middleware)
+app.use('/api/admin', adminRouter)
 
 // Example protected route
 app.get('/api/me', authenticateToken, async (req, res) => {

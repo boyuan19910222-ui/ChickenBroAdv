@@ -18,6 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
     const autoLogin = ref(localStorage.getItem('mp_autoLogin') === 'true')
     const loading = ref(false)
     const error = ref(null)
+    const isAdmin = ref(JSON.parse(localStorage.getItem('mp_isAdmin') || 'false'))
 
     // Getters
     const isLoggedIn = computed(() => !!token.value && !!user.value)
@@ -110,10 +111,12 @@ export const useAuthStore = defineStore('auth', () => {
             localStorage.removeItem('mp_token')
             localStorage.removeItem('mp_user')
             localStorage.removeItem('mp_autoLogin')
+            localStorage.removeItem('mp_isAdmin')
             // 重置 state
             token.value = null
             user.value = null
             autoLogin.value = false
+            isAdmin.value = false
             loading.value = false
         }
     }
@@ -127,6 +130,34 @@ export const useAuthStore = defineStore('auth', () => {
         return !!token.value && !!user.value
     }
 
+    async function fetchUser() {
+        if (!token.value) return false
+        loading.value = true
+        try {
+            const res = await fetch(`${API_BASE}/api/me`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token.value}`
+                },
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                return false
+            }
+            user.value = data.user
+            isAdmin.value = data.user.is_admin === true
+            localStorage.setItem('mp_user', JSON.stringify(data.user))
+            localStorage.setItem('mp_isAdmin', isAdmin.value.toString())
+            return true
+        } catch (err) {
+            console.error('Failed to fetch user:', err)
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
     return {
         // State
         token,
@@ -134,6 +165,7 @@ export const useAuthStore = defineStore('auth', () => {
         autoLogin,
         loading,
         error,
+        isAdmin,
         // Getters
         isLoggedIn,
         // Actions
@@ -141,6 +173,7 @@ export const useAuthStore = defineStore('auth', () => {
         register,
         logout,
         clearError,
-        checkAuth
+        checkAuth,
+        fetchUser
     }
 })

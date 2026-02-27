@@ -43,8 +43,14 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
+
+  // 如果已登录但用户信息中没有 is_admin 字段（旧的 localStorage 数据），尝试获取
+  const userHasAdminInfo = authStore.user && 'is_admin' in authStore.user
+  if (authStore.isLoggedIn && !userHasAdminInfo) {
+    await authStore.fetchUser()
+  }
 
   // 已登录用户访问登录页，重定向到角色选择
   if (to.path === '/' && authStore.isLoggedIn) {

@@ -162,6 +162,7 @@ async function handleLogin() {
     loginForm.value.autoLogin
   )
   if (success) {
+    await authStore.fetchUser() // 获取完整用户信息，包括管理员状态
     mpStore.connect()
     router.push('/characters')
   }
@@ -176,6 +177,7 @@ async function handleRegister() {
     registerForm.value.autoLogin
   )
   if (success) {
+    await authStore.fetchUser() // 获取完整用户信息，包括管理员状态
     mpStore.connect()
     router.push('/characters')
   }

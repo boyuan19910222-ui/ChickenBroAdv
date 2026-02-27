@@ -8,7 +8,9 @@
       "Bash(head:*)",
       "Bash(cd /c/workspace/project/ChickenBroAdv && openspec list --json 2>&1)",
       "Bash(cd /c/workspace/project/ChickenBroAdv && git push origin yclnycl20260226dev 2>&1)",
-      "Bash(cd /c/workspace/project/ChickenBroAdv && git add .github/workflows/deploy.yml 2>&1)"
+      "Bash(cd /c/workspace/project/ChickenBroAdv && git add .github/workflows/deploy.yml 2>&1)",
+      "Bash(openspec list:*)",
+      "Bash(cd C:\\\\workspace\\\\project\\\\ChickenBroAdv\\\\server:*)"
     ]
   }
 }
