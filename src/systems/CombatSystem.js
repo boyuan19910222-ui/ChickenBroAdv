@@ -1067,15 +1067,9 @@ export class CombatSystem {
             // 玩家死亡 - 启动跑尸效果
             this.addLog(`💀 战斗失败...`, 'system');
             
-            // 发射跑尸开始事件，延迟死亡处理
-            console.log('[CombatSystem] Emitting ghost-run:start event');
-            console.log('[CombatSystem] EventBus instance:', this.engine.eventBus);
-            console.log('[CombatSystem] EventBus listeners before emit:', this.engine.eventBus.listenerCount?.('ghost-run:start') || 'listenerCount not available');
-            // Add a small delay to ensure components are ready
+            // 跑尸开始事件，延迟死亡处理
             setTimeout(() => {
-                console.log('[CombatSystem] Actually emitting ghost-run:start event now');
                 this.engine.eventBus.emit('ghost-run:start');
-                console.log('[CombatSystem] Event emitted, listeners still registered:', this.engine.eventBus.listenerCount?.('ghost-run:start') || 'listenerCount not available');
             }, 200);
             return; // 返回，等待ghost-run:end事件继续处理
         }
@@ -1095,9 +1089,7 @@ export class CombatSystem {
      * 处理跑尸结束，继续死亡逻辑
      */
     handleGhostRunEnd() {
-        console.log('[CombatSystem] handleGhostRunEnd called - continuing death logic');
         const player = this.engine.stateManager.get('player');
-        
         // 死亡惩罚：满级扣10%金币，否则扣30%经验
         if (player.level >= 60) {
             const goldLost = Math.floor(player.gold * 0.1);
@@ -1131,9 +1123,9 @@ export class CombatSystem {
         this.activePet = null;
 
         // 切换回探索场景
-        setTimeout(() => {
-            this.engine.eventBus.emit('scene:change', 'exploration');
-        }, 2000);
+        // setTimeout(() => {
+        this.engine.eventBus.emit('scene:change', 'exploration');
+        // }, 2000);
     }
 
     /**
