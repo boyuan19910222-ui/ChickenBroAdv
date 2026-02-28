@@ -4,10 +4,14 @@
       <component :is="Component" />
     </transition>
   </router-view>
+  
+  <!-- 死亡跑尸覆盖层 - 最高层级确保覆盖所有内容 -->
+  <DeathGhostOverlay />
 </template>
 
 <script setup>
 import '@/core/globals.js'
+import DeathGhostOverlay from '@/components/modals/DeathGhostOverlay.vue'
 </script>
 
 <style>
