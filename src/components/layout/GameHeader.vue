@@ -30,7 +30,7 @@
         </button>
         <div v-if="showTestTools" class="test-tools-dropdown" @mouseleave="$emit('close-test-tools')">
           <div class="test-tools-buttons">
-            <button class="test-tool-btn" @click="$emit('debug-levelup'); $emit('close-test-tools')">
+            <button class="test-tool-btn" @click="$emit('debug-levelup')">
               <span class="btn-icon">⬆️</span>
               <span>测试升级</span>
             </button>
@@ -39,10 +39,18 @@
               :class="{ disabled: !isInCombat }"
               :disabled="!isInCombat"
               :title="!isInCombat ? '战斗中可用' : ''"
-              @click="$emit('debug-death'); $emit('close-test-tools')"
+              @click="$emit('debug-death')"
             >
               <span class="btn-icon">💀</span>
               <span>测试死亡</span>
+            </button>
+            <button class="test-tool-btn" @click="$emit('debug-get-equipment')">
+              <span class="btn-icon">⚔️</span>
+              <span>获取装备</span>
+            </button>
+            <button class="test-tool-btn" @click="$emit('debug-get-item')">
+              <span class="btn-icon">📦</span>
+              <span>获取物品</span>
             </button>
           </div>
         </div>
@@ -78,7 +86,7 @@ defineProps({
     default: false
   }
 })
-defineEmits(['open-areas', 'open-dungeon', 'open-talents', 'open-lobby', 'save-game', 'exit-game', 'debug-levelup', 'debug-death', 'open-test-tools', 'close-test-tools'])
+defineEmits(['open-areas', 'open-dungeon', 'open-talents', 'open-lobby', 'save-game', 'exit-game', 'debug-levelup', 'debug-death', 'debug-get-equipment', 'debug-get-item', 'open-test-tools', 'close-test-tools'])
 </script>
 
 <style scoped>
@@ -95,12 +103,12 @@ defineEmits(['open-areas', 'open-dungeon', 'open-talents', 'open-lobby', 'save-g
 }
 
 .test-tools-buttons {
-  display: flex;
-  gap: 4px;
-  padding: 8px;
-  background: var(--bg-surface, #1a1a2e);
-  border: 2px solid var(--border-color, #3d3d5c);
-  border-radius: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 6px;
+  background: linear-gradient(145deg, var(--bg-primary), #060e18);
+  border: 2px solid var(--border-primary);
 }
 
 .test-tool-btn {
@@ -109,23 +117,24 @@ defineEmits(['open-areas', 'open-dungeon', 'open-talents', 'open-lobby', 'save-g
   align-items: center;
   justify-content: center;
   gap: 2px;
-  padding: 4px 12px;
-  background: var(--bg-primary, #16213e);
-  border: 1px solid var(--border-color, #3d3d5c);
-  border-radius: 4px;
-  color: var(--text-primary, #eee);
-  font-size: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(145deg, var(--bg-secondary), var(--bg-primary));
+  border: 2px solid var(--border-primary);
+  color: var(--text-primary);
+  font-family: var(--pixel-font);
+  font-size: var(--fs-xs);
   cursor: pointer;
   white-space: nowrap;
+  min-height: 36px;
 }
 
 .test-tool-btn .btn-icon {
   font-size: 16px;
-  line-height: 1;
 }
 
 .test-tool-btn:hover {
-  background: var(--bg-hover, #1f3460);
+  background: linear-gradient(145deg, var(--bg-tertiary), var(--bg-secondary));
+  border-color: var(--primary-gold);
 }
 
 .test-death-btn {
