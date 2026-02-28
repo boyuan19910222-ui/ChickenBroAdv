@@ -13,7 +13,7 @@
 
 <script>
 import { useGameStore } from '@/stores/gameStore.js'
-import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 
 export default {
   name: 'DeathGhostOverlay',
@@ -32,9 +32,6 @@ export default {
     let randomDuration = 0
     
     const startGhostRun = () => {
-      console.log('[DeathGhostOverlay] *** RECEIVED GHOST-RUN:START EVENT ***');
-      console.log('[DeathGhostOverlay] Ghost run started!');
-      
       // Clear any existing timers to prevent duplicates
       clearTimers()
       
@@ -56,13 +53,11 @@ export default {
       
       // Set emergency timeout (15 seconds - safety mechanism)
       emergencyTimeoutTimer = setTimeout(() => {
-        console.warn('[DeathGhostOverlay] Emergency timeout triggered - forcing ghost run end')
         triggerGhostRunEnd()
       }, 15000)
     }
     
     const endGhostRun = () => {
-      console.log('[DeathGhostOverlay] Ghost run ended');
       isVisible.value = false
       clearTimers()
       resetDotAnimation()
@@ -114,35 +109,29 @@ export default {
     
     const triggerGhostRunEnd = () => {
       // Emit ghost-run:end event to notify system
-      console.log('[DeathGhostOverlay] Triggering ghost-run:end event');
       gameStore.eventBus?.emit('ghost-run:end')
     }
     
-    onMounted(() => {
-      console.log('[DeathGhostOverlay] Component mounted at:', new Date().toISOString());
-      console.log('[DeathGhostOverlay] EventBus available:', !!gameStore.eventBus);
-      console.log('[DeathGhostOverlay] EventBus instance:', gameStore.eventBus);
-      
+    // 保证事件监听器初始化
+    const registerEventListeners = () => {
       const eventBus = gameStore.eventBus
       if (eventBus) {
-        console.log('[DeathGhostOverlay] Registering listeners...');
         eventBus.on('ghost-run:start', startGhostRun)
         eventBus.on('ghost-run:end', endGhostRun)
-        console.log('[DeathGhostOverlay] Event listeners registered successfully');
-        console.log('[DeathGhostOverlay] Listeners count for ghost-run:start:', eventBus.listenerCount?.('ghost-run:start') || 'listenerCount not available');
-        
-        // Test direct emit to verify listener is working
-        setTimeout(() => {
-          console.log('[DeathGhostOverlay] Testing direct event emission...');
-          eventBus.emit('ghost-run:start');
-        }, 1000);
-      } else {
-        console.error('[DeathGhostOverlay] EventBus not available!');
       }
+    }
+
+    watch(() => gameStore.eventBus, (newBus, oldBus) => {
+      if (newBus && newBus !== oldBus) {
+        registerEventListeners()
+      }
+    }, { immediate: true });
+
+    onMounted(() => {
+      registerEventListeners()
     })
-    
+
     onBeforeUnmount(() => {
-      console.log('[DeathGhostOverlay] Component unmounting, cleaning up');
       const eventBus = gameStore.eventBus
       if (eventBus) {
         eventBus.off('ghost-run:start', startGhostRun)
