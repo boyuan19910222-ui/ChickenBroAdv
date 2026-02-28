@@ -1,4 +1,20 @@
+//保证最多只有四条更新日志
 export const changelogs = [
+  {
+    version: "v1.7.0",
+    date: "2026-02-27",
+    title: "服务端目录结构重构 & API 版本化",
+    content: [
+      "重构：服务端目录按职责分层（routes/middleware/services/sockets/utils），提升代码可维护性",
+      "重构：入口文件 index.js 精简至 260 行，路由/Socket 事件拆分到独立模块",
+      "新增：API 路径版本化，前端用户接口使用 /api/v1/* 前缀",
+      "新增：预留管理后台路由结构 /api/admin/*，便于后续扩展",
+      "新增：Socket 事件处理器按功能分类（roomHandlers/battleHandlers/chatHandlers）",
+      "新增：中间件模块化（auth.js/errorHandler.js），统一从 index.js 导出",
+      "优化：服务启动流程更清晰，模块职责边界明确",
+      "优化：新增 OpenSpec 规范文档（server-directory-structure, api-route-layering）"
+    ]
+  },
   {
     version: "v1.6.0",
     date: "2026-02-27",
@@ -51,20 +67,6 @@ export const changelogs = [
       "修复：gameStore.dungeonCombatSystem getter 多人模式下返回错误系统实例",
       "修复：等待房间断线重连后玩家显示离线、开始战斗按钮消失的问题",
       "优化：服务启动改为异步序列（loadClassConfigs → loadHistory → recoverRooms → recoverInBattleRooms）"
-    ]
-  },
-  {
-    version: "v1.3.0",
-    date: "2026-02-26",
-    commit: "5ea4c8e",
-    title: "数据库架构重构（MySQL + Sequelize）",
-    content: [
-      "重构：服务端持久化从本地 SQLite 切换为线上 MySQL，接入 Sequelize ORM",
-      "新增：统一数据模型（users / characters / battle_records）与数据库迁移脚本",
-      "兼容：保留原 statements 调用语义，通过异步适配层实现接口无感升级",
-      "增强：新增数据库健康检查与全局连接异常处理（不可用时返回 503）",
-      "新增：SQLite → MySQL 一次性迁移脚本，支持 --dry-run 与 --env=production",
-      "优化：启动脚本支持开发/生产环境选择，并按环境加载 .env 配置"
     ]
   }
 ];

@@ -43,6 +43,11 @@ User.init(
             type:         DataTypes.TINYINT,
             defaultValue: 0,
         },
+        is_admin: {
+            type:         DataTypes.TINYINT,
+            allowNull:    false,
+            defaultValue: 0,
+        },
     },
     {
         sequelize,

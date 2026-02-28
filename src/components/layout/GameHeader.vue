@@ -27,6 +27,10 @@
         <span class="btn-icon">⬆️</span>
         <span>测试升级</span>
       </button>
+      <a v-if="isAdmin" href="/admin.html" class="header-btn system-btn" target="_blank">
+        <span class="btn-icon">⚙️</span>
+        <span>管理面板</span>
+      </a>
       <button class="header-btn system-btn" @click="$emit('save-game')">
         <span class="btn-icon">💾</span>
         <span>保存</span>
@@ -40,5 +44,11 @@
 </template>
 
 <script setup>
+defineProps({
+  isAdmin: {
+    type: Boolean,
+    default: false
+  }
+})
 defineEmits(['open-areas', 'open-dungeon', 'open-talents', 'open-lobby', 'save-game', 'exit-game', 'debug-levelup'])
 </script>

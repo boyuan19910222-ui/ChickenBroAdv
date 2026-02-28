@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { authenticateToken } from './middleware.js'
+import { authenticateToken } from '../../middleware/index.js'
 
 // ── 运行时职业配置缓存（由 loadClassConfigs 初始化） ───────────────────────────────
 let _classConfigs = null  // classId → config

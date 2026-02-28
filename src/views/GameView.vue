@@ -2,6 +2,7 @@
   <div class="game-scene">
     <!-- 游戏标题栏 -->
     <GameHeader
+      :is-admin="authStore.isAdmin"
       @open-areas="showAreaSelection = true"
       @open-dungeon="enterDungeon"
       @open-talents="showTalents = true"
@@ -71,6 +72,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/gameStore.js'
+import { useAuthStore } from '@/stores/authStore.js'
 import { useMultiplayerStore } from '@/stores/multiplayerStore.js'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts.js'
 
@@ -88,6 +90,7 @@ import LobbyModal from '@/components/modals/LobbyModal.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
+const authStore = useAuthStore()
 const mpStore = useMultiplayerStore()
 
 const showAreaSelection = ref(false)

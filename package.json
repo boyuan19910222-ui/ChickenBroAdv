@@ -18,8 +18,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@popperjs/core": "^2.11.8",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",
+    "bootstrap": "^5.3.8",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
