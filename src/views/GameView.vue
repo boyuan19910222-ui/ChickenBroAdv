@@ -3,6 +3,8 @@
     <!-- 游戏标题栏 -->
     <GameHeader
       :is-admin="authStore.isAdmin"
+      :show-test-tools="showTestTools"
+      :is-in-combat="isInCombat"
       @open-areas="showAreaSelection = true"
       @open-dungeon="enterDungeon"
       @open-talents="showTalents = true"
@@ -10,6 +12,9 @@
       @save-game="saveGame"
       @exit-game="exitGame"
       @debug-levelup="debugLevelUp"
+      @debug-death="debugDeath"
+      @open-test-tools="showTestTools = !showTestTools"
+      @close-test-tools="showTestTools = false"
     />
 
     <!-- 主游戏区域 -->
@@ -97,6 +102,11 @@ const showAreaSelection = ref(false)
 const showTalents = ref(false)
 const showDungeonSelect = ref(false)
 const showLobbyModal = ref(false)
+const showTestTools = ref(false)
+
+const isInCombat = computed(() => 
+  gameStore.currentScene === 'combat' || gameStore.currentScene === 'dungeon'
+)
 
 // 断线重连待领奖励（battle:restore 场景：DungeonCombatView 未挂载时）
 const showPendingReward = computed(() =>
@@ -175,6 +185,17 @@ function debugLevelUp() {
     charSystem.addExperience(needed)
     gameStore.syncFromEngine()
     gameStore.addLog(`⬆️ [测试] 升级到 ${gameStore.player.level} 级!`, 'system')
+  }
+}
+
+function debugDeath() {
+  const player = gameStore.player
+  if (!player) return
+  const charSystem = gameStore.characterSystem
+  if (charSystem) {
+    charSystem.takeDamage(player.maxHp)
+    gameStore.syncFromEngine()
+    gameStore.addLog(`💀 [测试] 玩家已死亡!`, 'system')
   }
 }
 </script>
