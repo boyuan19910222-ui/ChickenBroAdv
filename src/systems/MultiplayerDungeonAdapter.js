@@ -217,9 +217,7 @@ export class MultiplayerDungeonAdapter {
                 return;
             }
 
-            const apiHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-                ? 'http://127.0.0.1:3001'
-                : `http://${window.location.hostname}:3001`;
+            const apiHost = "";
             const url = `${apiHost}/api/v1/characters/${characterId}`;
 
             const response = await fetch(url, {
