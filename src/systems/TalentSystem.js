@@ -183,8 +183,8 @@ export class TalentSystem {
         const currentPoints = character.talents[treeName][talentId] || 0;
         character.talents[treeName][talentId] = currentPoints + 1;
 
-        // 保存角色数据
-        this.engine.stateManager.set('player', character);
+        // 保存角色数据（深拷贝以确保响应式更新）
+        this.engine.stateManager.set('player', JSON.parse(JSON.stringify(character)));
 
         // 触发事件
         const classTalents = TalentData[classId];
@@ -233,8 +233,8 @@ export class TalentSystem {
         const refundedPoints = this.getPointsInTree(character, treeName);
         character.talents[treeName] = {};
 
-        // 保存角色数据
-        this.engine.stateManager.set('player', character);
+        // 保存角色数据（深拷贝以确保响应式更新）
+        this.engine.stateManager.set('player', JSON.parse(JSON.stringify(character)));
 
         // 触发事件
         this.engine.eventBus.emit('talent:treeReset', {
@@ -260,8 +260,8 @@ export class TalentSystem {
         const refundedPoints = this.getUsedTalentPoints(character);
         character.talents = {};
 
-        // 保存角色数据
-        this.engine.stateManager.set('player', character);
+        // 保存角色数据（深拷贝以确保响应式更新）
+        this.engine.stateManager.set('player', JSON.parse(JSON.stringify(character)));
 
         // 触发事件
         this.engine.eventBus.emit('talent:allReset', {
@@ -406,8 +406,8 @@ export class TalentSystem {
         // 确保当前值不超过上限
         character.resource.current = Math.min(character.resource.current, character.resource.max);
         
-        // 保存角色数据
-        this.engine.stateManager.set('player', character);
+        // 保存角色数据（深拷贝以确保响应式更新）
+        this.engine.stateManager.set('player', JSON.parse(JSON.stringify(character)));
     }
 
     /**

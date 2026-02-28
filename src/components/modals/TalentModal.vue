@@ -298,6 +298,7 @@ function allocate(talentId) {
   if (result.success) {
     gameStore.characterSystem?.recalculateStats(enginePlayer)
     gameStore.syncFromEngine()
+    gameStore.saveGame()  // 立即保存天赋
   } else {
     gameStore.addLog(`❌ ${result.reason}`, 'system')
   }
@@ -316,6 +317,7 @@ function resetCurrentTree() {
   if (result.success) {
     gameStore.characterSystem?.recalculateStats(enginePlayer)
     gameStore.syncFromEngine()
+    gameStore.saveGame()  // 立即保存天赋
     gameStore.addLog(`⭐ 已重置天赋树，返还 ${result.refundedPoints} 点`, 'system')
   }
 }
@@ -338,6 +340,7 @@ function resetAll() {
   if (result.success) {
     gameStore.characterSystem?.recalculateStats(enginePlayer)
     gameStore.syncFromEngine()
+    gameStore.saveGame()  // 立即保存天赋
     gameStore.addLog(`⭐ 已重置全部天赋，返还 ${result.refundedPoints} 点`, 'system')
     gameStore.addLootLog(`💸 -${cost} 金币（重置天赋）`)
   }
