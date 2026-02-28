@@ -7,10 +7,7 @@ import { defineStore } from 'pinia'
 import { io } from 'socket.io-client'
 
 // 动态获取 API 地址
-const API_HOST = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://127.0.0.1:3001'
-    : `http://${window.location.hostname}:3001`
-const API_BASE = API_HOST
+const API_BASE = ""
 
 export const useMultiplayerStore = defineStore('multiplayer', {
     state: () => ({

@@ -20,7 +20,8 @@
       "Bash(openspec list:*)",
       "Skill(openspec-sync-specs)",
       "Bash(test -d:*)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: 添加管理员GM面板 \\(Admin GM Panel\\)\n\n添加完整的GM管理系统，支持用户、角色和职业配置的图形化管理。\n\n新增功能:\n- GM面板前端界面 \\(Bootstrap风格\\)\n- 用户管理API \\(列表、搜索、编辑、删除、设置管理员\\)\n- 角色管理API \\(列表、搜索、详情、编辑、删除、game_state增量更新\\)\n- 职业配置管理API \\(CRUD操作、热重载\\)\n- 管理员认证中间件 \\(JWT验证、is_admin检查\\)\n- Vite多入口配置 \\(admin.html独立于游戏主界面\\)\n- 游戏主界面添加\"管理面板\"入口按钮\n\n变更:\n- users表新增is_admin字段 \\(TINYINT, 默认0\\)\n- 登录/注册API返回is_admin字段\n- player-schema和class-config-table规范更新\n\n新增规范:\n- admin-auth-middleware\n- admin-user-management\n- admin-character-management\n- admin-class-config-management\n- admin-gm-panel-ui\n\n依赖:\n- bootstrap@^5.3.8\n- @popperjs/core@^2.11.8\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
