@@ -36,11 +36,6 @@
         >注册</button>
       </div>
 
-      <!-- 错误提示 -->
-      <div v-if="authStore.error" class="error-msg">
-        {{ authStore.error }}
-      </div>
-
       <!-- 登录表单 -->
       <form v-if="activeTab === 'login'" class="login-form" @submit.prevent="handleLogin">
         <div class="form-group">

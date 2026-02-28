@@ -2,10 +2,10 @@
  * @deprecated BroadcastEventBus 已不再用于战斗事件广播。
  * 保留 import 仅为兼容已有构造函数签名。
  */
-import { BroadcastEventBus } from './BroadcastEventBus.js'
-import { SeededRandom } from '../src/core/SeededRandom.js'
-import { setRandom, getRandom } from '../src/core/RandomProvider.js'
-import { PartyFormationSystem } from '../src/systems/PartyFormationSystem.js'
+import { BroadcastEventBus } from '../utils/BroadcastEventBus.js'
+import { SeededRandom } from '../../src/core/SeededRandom.js'
+import { setRandom, getRandom } from '../../src/core/RandomProvider.js'
+import { PartyFormationSystem } from '../../src/systems/PartyFormationSystem.js'
 import {
     DungeonLootConfig,
     EquipmentDatabase,
@@ -13,7 +13,7 @@ import {
     QUALITY_ORDER,
     clampQuality,
     ClassArmorAffinity,
-} from '../src/data/EquipmentData.js'
+} from '../../src/data/EquipmentData.js'
 
 /**
  * 服务端战斗引擎 — 精简版（仅保留掉落计算）

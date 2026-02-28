@@ -48,6 +48,30 @@
 
 .pixel-btn.primary {
     border-color: var(--primary-gold);
+}
+
+.pixel-btn.secondary {
+    background: linear-gradient(180deg, #6c757d, #ffc107);
+    border: 2px solid #ffc107;
+}
+
+.pixel-btn.secondary:hover {
+    border-color: #ffc107;
+    background: linear-gradient(180deg, #ffc107, #6c757d);
+}
+
+/* 管理面板入口按钮 */
+.admin-entry-btn {
+    margin-top: 16px;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.admin-entry-btn a {
+    display: inline-block;
+    font-size: var(--fs-sm);
+    padding: 8px 24px;
+}
     background: linear-gradient(180deg, var(--dark-gold), var(--secondary-gold));
     color: var(--text-dark);
 }
