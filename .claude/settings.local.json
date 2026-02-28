@@ -16,7 +16,11 @@
       "Bash(npm run migrate:*)",
       "Bash(curl:*)",
       "Bash(netstat:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(openspec list:*)",
+      "Skill(openspec-sync-specs)",
+      "Bash(test -d:*)",
+      "Bash(powershell -Command:*)"
     ]
   }
 }

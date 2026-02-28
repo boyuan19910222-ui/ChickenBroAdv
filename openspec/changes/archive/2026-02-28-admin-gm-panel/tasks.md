@@ -20,20 +20,20 @@
 ## 3. 管理员 API - 角色管理
 
 - [x] 3.1 创建 `server/routes/admin/characters.js` 角色管理路由文件
-- [ ] 3.2 实现 GET /api/admin/characters - 获取角色列表（支持分页、搜索、关联用户信息）
-- [ ] 3.3 实现 GET /api/admin/characters/:id - 获取单个角色详情（包含解析后的 game_state）
-- [ ] 3.4 实现 PUT /api/admin/characters/:id - 更新角色信息（支持 game_state 增量更新）
-- [ ] 3.5 实现 DELETE /api/admin/characters/:id - 删除角色
+- [x] 3.2 实现 GET /api/admin/characters - 获取角色列表（支持分页、搜索、关联用户信息）
+- [x] 3.3 实现 GET /api/admin/characters/:id - 获取单个角色详情（包含解析后的 game_state）
+- [x] 3.4 实现 PUT /api/admin/characters/:id - 更新角色信息（支持 game_state 增量更新）
+- [x] 3.5 实现 DELETE /api/admin/characters/:id - 删除角色
 - [x] 3.6 更新 `server/routes/admin/index.js`，挂载角色管理路由
 
 ## 4. 管理员 API - 职业配置管理
 
 - [x] 4.1 创建 `server/routes/admin/class-configs.js` 职业配置管理路由文件
-- [ ] 4.2 实现 GET /api/admin/class-configs - 获取职业配置列表
-- [ ] 4.3 实现 POST /api/admin/class-configs - 创建职业配置（包含字段验证）
-- [ ] 4.4 实现 PUT /api/admin/class-configs/:id - 更新职业配置
-- [ ] 4.5 实现 DELETE /api/admin/class-configs/:id - 删除职业配置
-- [ ] 4.6 实现 POST /api/admin/class-configs/reload - 热重载职业配置到内存
+- [x] 4.2 实现 GET /api/admin/class-configs - 获取职业配置列表
+- [x] 4.3 实现 POST /api/admin/class-configs - 创建职业配置（包含字段验证）
+- [x] 4.4 实现 PUT /api/admin/class-configs/:id - 更新职业配置
+- [x] 4.5 实现 DELETE /api/admin/class-configs/:id - 删除职业配置
+- [x] 4.6 实现 POST /api/admin/class-configs/reload - 热重载职业配置到内存
 - [x] 4.7 更新 `server/routes/admin/index.js`，挂载职业配置管理路由
 
 ## 5. 前端基础配置
@@ -48,7 +48,7 @@
 - [x] 6.1 创建 src/admin/main.js，导入 Bootstrap CSS/JS，创建独立 Vue 应用
 - [x] 6.2 创建 src/admin/App.vue，定义 GM 面板根组件和布局
 - [x] 6.3 创建 src/admin/router/index.js，配置 GM 面板路由（登录页、用户管理、角色管理、职业配置）
-- [ ] 6.4 创建 src/admin/router/guards.js，实现路由守卫（验证登录状态和管理员权限）
+- [x] 6.4 创建 src/admin/router/guards.js，实现路由守卫（验证登录状态和管理员权限）
 
 ## 7. GM 面板登录功能
 
@@ -81,24 +81,24 @@
 
 - [x] 10.1 创建 src/admin/services/characters.js，封装角色管理 API
 - [x] 10.2 创建 src/admin/views/Characters.vue 角色管理页面
-- [ ] 10.3 实现角色列表表格（包含所属用户信息）
-- [ ] 10.4 实现搜索功能（按角色名或用户名搜索）
-- [ ] 10.5 实现分页控件
-- [ ] 10.6 创建 src/admin/components/CharacterDetailModal.vue 角色详情模态框
-- [ ] 10.7 创建 src/admin/components/CharacterEditModal.vue 角色编辑模态框
-- [ ] 10.8 实现编辑角色功能（修改角色名、等级、金币、基础属性等）
-- [ ] 10.9 实现删除角色功能（含二次确认对话框）
+- [x] 10.3 实现角色列表表格（包含所属用户信息）
+- [x] 10.4 实现搜索功能（按角色名或用户名搜索）
+- [x] 10.5 实现分页控件
+- [x] 10.6 创建 src/admin/components/CharacterDetailModal.vue 角色详情模态框
+- [x] 10.7 创建 src/admin/components/CharacterEditModal.vue 角色编辑模态框
+- [x] 10.8 实现编辑角色功能（修改角色名、等级、金币、基础属性等）
+- [x] 10.9 实现删除角色功能（含二次确认对话框）
 
 ## 11. 职业配置管理页面
 
 - [x] 11.1 创建 src/admin/services/class-configs.js，封装职业配置管理 API
 - [x] 11.2 创建 src/admin/views/ClassConfigs.vue 职业配置管理页面
-- [ ] 11.3 实现职业配置列表表格
-- [ ] 11.4 创建 src/admin/components/ClassConfigEditModal.vue 职业配置编辑模态框
-- [ ] 11.5 实现创建职业配置功能（包含表单验证）
-- [ ] 11.6 实现编辑职业配置功能
-- [ ] 11.7 实现删除职业配置功能（含二次确认对话框）
-- [ ] 11.8 实现热重载配置功能，显示成功提示（Bootstrap Alert）
+- [x] 11.3 实现职业配置列表表格
+- [x] 11.4 创建 src/admin/components/ClassConfigEditModal.vue 职业配置编辑模态框
+- [x] 11.5 实现创建职业配置功能（包含表单验证）
+- [x] 11.6 实现编辑职业配置功能
+- [x] 11.7 实现删除职业配置功能（含二次确认对话框）
+- [x] 11.8 实现热重载配置功能，显示成功提示（Bootstrap Alert）
 
 ## 12. 游戏主界面集成
 

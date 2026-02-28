@@ -36,13 +36,6 @@
         >注册</button>
       </div>
 
-      <!-- 管理面板入口按钮（仅管理员可见） -->
-      <div v-if="authStore.isAdmin" class="admin-entry-btn">
-        <a href="/admin.html" class="pixel-btn secondary">
-          进入管理面板
-        </a>
-      </div>
-
       <!-- 登录表单 -->
       <form v-if="activeTab === 'login'" class="login-form" @submit.prevent="handleLogin">
         <div class="form-group">

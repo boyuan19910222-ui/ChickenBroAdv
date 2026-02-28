@@ -1,5 +1,5 @@
 <template>
-  <div class="modal fade" :class="{ show: show }" tabindex="-1">
+  <div class="modal fade" :class="{ show: show }" tabindex="-1" style="display: block;" v-if="show">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
@@ -85,6 +85,7 @@
       </div>
     </div>
   </div>
+  <div class="modal-backdrop fade show" v-if="show"></div>
 </template>
 
 <script setup>
@@ -162,5 +163,8 @@ async function handleSubmit() {
   width: 1rem;
   height: 1rem;
   border-width: 0.15em;
+}
+.modal {
+  background: rgba(0, 0, 0, 0.5);
 }
 </style>
