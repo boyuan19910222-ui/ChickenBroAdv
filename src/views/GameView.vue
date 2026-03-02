@@ -3,6 +3,8 @@
     <!-- 游戏标题栏 -->
     <GameHeader
       :is-admin="authStore.isAdmin"
+      :show-test-tools="showTestTools"
+      :is-in-combat="isInCombat"
       @open-areas="showAreaSelection = true"
       @open-dungeon="enterDungeon"
       @open-talents="showTalents = true"
@@ -10,6 +12,11 @@
       @save-game="saveGame"
       @exit-game="exitGame"
       @debug-levelup="debugLevelUp"
+      @debug-death="debugDeath"
+      @debug-get-equipment="debugGetEquipment"
+      @debug-get-item="debugGetItem"
+      @open-test-tools="showTestTools = !showTestTools"
+      @close-test-tools="showTestTools = false"
     />
 
     <!-- 主游戏区域 -->
@@ -87,6 +94,9 @@ import AreaSelectionModal from '@/components/modals/AreaSelectionModal.vue'
 import TalentModal from '@/components/modals/TalentModal.vue'
 import DungeonSelectDialog from '@/components/modals/DungeonSelectDialog.vue'
 import LobbyModal from '@/components/modals/LobbyModal.vue'
+import { rollEquipmentDrop } from '@/data/EquipmentData.js'
+import { GameData } from '@/data/GameData.js'
+import { random } from '@/core/RandomProvider.js'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -97,6 +107,11 @@ const showAreaSelection = ref(false)
 const showTalents = ref(false)
 const showDungeonSelect = ref(false)
 const showLobbyModal = ref(false)
+const showTestTools = ref(false)
+
+const isInCombat = computed(() => 
+  gameStore.currentScene === 'combat' || gameStore.currentScene === 'dungeon'
+)
 
 // 断线重连待领奖励（battle:restore 场景：DungeonCombatView 未挂载时）
 const showPendingReward = computed(() =>
@@ -176,6 +191,59 @@ function debugLevelUp() {
     gameStore.syncFromEngine()
     gameStore.addLog(`⬆️ [测试] 升级到 ${gameStore.player.level} 级!`, 'system')
   }
+}
+
+function debugDeath() {
+  const player = gameStore.player
+  if (!player) return
+  const charSystem = gameStore.characterSystem
+  if (charSystem) {
+    charSystem.takeDamage(player.maxHp)
+    gameStore.syncFromEngine()
+    gameStore.addLog(`💀 [测试] 玩家已死亡!`, 'system')
+  }
+}
+
+function debugGetEquipment() {
+  const enginePlayer = gameStore.engine?.stateManager?.get('player')
+  if (!enginePlayer) return
+  const monsterIds = ['forestOrc', 'goblin', 'wolf', 'skeleton', 'troll']
+  let equipment = null
+  for (let i = 0; i < 10; i++) {
+    const monsterId = monsterIds[Math.floor(random() * monsterIds.length)]
+    equipment = rollEquipmentDrop(monsterId)
+    if (equipment) break
+  }
+  if (!equipment) {
+    gameStore.addLog('⚠️ [测试] 获得装备失败', 'system')
+    return
+  }
+  if (!enginePlayer.inventory) enginePlayer.inventory = []
+  if (enginePlayer.inventory.length >= 40) {
+    gameStore.addLog('⚠️ [测试] 背包已满!', 'system')
+    return
+  }
+  enginePlayer.inventory.push(equipment)
+  gameStore.syncFromEngine()
+  const qualityEmoji = { common: '⚪', uncommon: '🟢', rare: '🔵', epic: '🟣', legendary: '🟡' }
+  gameStore.addLog(`${qualityEmoji[equipment.quality] || '📦'} [测试] 获得装备: ${equipment.name}`, 'system')
+}
+
+function debugGetItem() {
+  const enginePlayer = gameStore.engine?.stateManager?.get('player')
+  if (!enginePlayer) return
+  const itemTemplates = GameData.items
+  const itemKeys = Object.keys(itemTemplates)
+  const itemKey = itemKeys[Math.floor(random() * itemKeys.length)]
+  const item = { ...itemTemplates[itemKey], instanceId: 'item_' + Date.now() }
+  if (!enginePlayer.inventory) enginePlayer.inventory = []
+  if (enginePlayer.inventory.length >= 40) {
+    gameStore.addLog('⚠️ [测试] 背包已满!', 'system')
+    return
+  }
+  enginePlayer.inventory.push(item)
+  gameStore.syncFromEngine()
+  gameStore.addLog(`${item.emoji} [测试] 获得物品: ${item.name}`, 'system')
 }
 </script>
 
